@@ -132,6 +132,23 @@ test('disk failure on rename leaves the previous live file intact', async () => 
   assert.equal(fs.readFileSync(path.join(dir, 'trailmap.json'), 'utf8'), before, 'old file untouched');
 });
 
+test('save detects external changes and refuses to clobber (CONFLICT)', async () => {
+  const { dir, p } = makeProvider();
+  await p.load();
+  await p.save(minimalDoc());
+  // simulate an external editor replacing the file between our saves
+  const external = minimalDoc(); external.title = 'External Edit';
+  fs.writeFileSync(path.join(dir, 'trailmap.json'), JSON.stringify(external));
+  const mine = minimalDoc(); mine.title = 'Stale App State';
+  await assert.rejects(() => p.save(mine), e => e.code === 'CONFLICT' && e.raw.includes('External Edit'));
+  // disk still holds the external edit
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'trailmap.json'), 'utf8')).title, 'External Edit');
+  // resolution path 1: adopt external, then forceSave overwrites deliberately
+  p.adoptExternal(fs.readFileSync(path.join(dir, 'trailmap.json'), 'utf8'));
+  await p.forceSave(mine);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'trailmap.json'), 'utf8')).title, 'Stale App State');
+});
+
 test('unknown fields survive a save/load round-trip (forward compat)', async () => {
   const { p } = makeProvider();
   await p.load();

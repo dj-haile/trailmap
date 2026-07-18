@@ -110,6 +110,41 @@ export function newId(prefix) {
   return `${prefix}_${rand}`;
 }
 
+/** Notification tier for a waiting chip aged `days`: 0 none, 1 warn (≥5d), 2 crit (≥10d). */
+export function waitingTier(days) {
+  if (days >= CONSTANTS.AGE_CRIT_DAYS) return 2;
+  if (days >= CONSTANTS.AGE_WARN_DAYS) return 1;
+  return 0;
+}
+
+/**
+ * Waiting-on chips whose tier has risen past what was already notified
+ * (plan §7 — one notification per chip per tier, ever). Pure: does not mutate.
+ */
+export function pendingWaitingNotifications(doc, today) {
+  const out = [];
+  for (const g of doc.goals) {
+    for (const it of g.inits) {
+      for (const w of it.waiting) {
+        const days = ageDays(w.since, today);
+        const tier = waitingTier(days);
+        const last = w.lastNotifiedTier || 0;
+        if (tier > last) {
+          out.push({ waitId: w.id, who: w.who, what: w.what, days, tier, goalName: g.name, initName: it.name });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Record that a chip has been notified at `tier` (never lowers the recorded tier). */
+export function applyNotifiedTier(doc, waitId, tier) {
+  for (const g of doc.goals) for (const it of g.inits) for (const w of it.waiting) {
+    if (w.id === waitId) w.lastNotifiedTier = Math.max(w.lastNotifiedTier || 0, tier);
+  }
+}
+
 /**
  * Structural validation (plan §4.2). Returns a list of problems; empty = valid.
  * Tolerant of unknown extra fields (forward compatibility, §4.2).

@@ -1,11 +1,19 @@
 // M1 acceptance sweep (plan §9 M1): every prototype interaction, headless.
 const { test, expect, _electron: electron } = require('@playwright/test');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
 let app, page;
 
 test.beforeAll(async () => {
-  app = await electron.launch({ args: [path.join(__dirname, '..', '..')] });
+  // Fresh data dir per run: the app persists now, and parity assertions assume
+  // pristine sample data. Fake notifications so launch checks can't interfere.
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-parity-'));
+  app = await electron.launch({
+    args: [path.join(__dirname, '..', '..')],
+    env: { ...process.env, TRAILMAP_DATA_DIR: dataDir, TRAILMAP_SILENT_DIALOGS: '1', TRAILMAP_NOTIFY_FAKE: '1' },
+  });
   page = await app.firstWindow();
   await page.waitForSelector('.goal');
 });

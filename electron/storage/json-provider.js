@@ -31,6 +31,14 @@ class CorruptError extends Error {
   }
 }
 
+class ConflictError extends Error {
+  constructor(raw) {
+    super('live file changed on disk since our last write');
+    this.code = 'CONFLICT';
+    this.raw = raw; // the external content, so the caller can resolve
+  }
+}
+
 class JsonProvider {
   /**
    * @param {string} dir data directory
@@ -98,7 +106,24 @@ class JsonProvider {
     return dest;
   }
 
+  /** Throws {code:'CONFLICT'} if the live file changed since our last write —
+   *  a debounced save must never clobber an external edit (plan §10). */
+  _checkConflict() {
+    if (this._lastSaved === null) return; // first write / adopted external
+    if (!this.fs.existsSync(this.file)) return;
+    const raw = this.fs.readFileSync(this.file, 'utf8');
+    if (raw !== this._lastSaved) throw new ConflictError(raw);
+  }
+
   async save(doc) {
+    const { errs } = await this._validate(doc);
+    if (errs.length) throw new Error('refusing to save invalid document: ' + errs[0]);
+    this._checkConflict();
+    this._writeAtomicAndSnapshot(JSON.stringify(doc, null, 1));
+  }
+
+  /** Save that intentionally overwrites external changes (conflict already resolved by the user). */
+  async forceSave(doc) {
     const { errs } = await this._validate(doc);
     if (errs.length) throw new Error('refusing to save invalid document: ' + errs[0]);
     this._writeAtomicAndSnapshot(JSON.stringify(doc, null, 1));
@@ -107,7 +132,13 @@ class JsonProvider {
   /** Synchronous flush for before-quit (plan §8). Skips re-validation: the doc
    *  came through the same IPC path save() already validates. */
   saveSync(doc) {
+    this._checkConflict();
     this._writeAtomicAndSnapshot(JSON.stringify(doc, null, 1));
+  }
+
+  /** Adopt external content as the new baseline (watcher/conflict resolution). */
+  adoptExternal(raw) {
+    this._lastSaved = raw;
   }
 
   _writeAtomicAndSnapshot(json) {
@@ -206,4 +237,4 @@ class JsonProvider {
   }
 }
 
-module.exports = { JsonProvider, CorruptError, LIVE_NAME, SNAP_DIR };
+module.exports = { JsonProvider, CorruptError, ConflictError, LIVE_NAME, SNAP_DIR };
