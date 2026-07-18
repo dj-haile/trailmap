@@ -1,0 +1,37 @@
+{
+  "name": "trailmap",
+  "productName": "Trailmap",
+  "version": "0.1.0",
+  "description": "A visual quarterly map of your work — goal rings, initiatives, people-shaped dependencies, one move at a time.",
+  "main": "electron/main.js",
+  "author": "Dj Haile <dj.haile@gmail.com>",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "npm run check:renderer && node --test \"test/unit/*.test.mjs\"",
+    "test:e2e": "playwright test --config test/e2e/playwright.config.js",
+    "check:renderer": "node scripts/check-renderer-purity.js",
+    "dist": "electron-builder --mac dmg --arm64"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.dj.trailmap",
+    "productName": "Trailmap",
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "fixtures/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [{ "target": "dmg", "arch": ["arm64"] }],
+      "identity": null
+    }
+  }
+}

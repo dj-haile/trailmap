@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "title": "Q3 — Trailmap",
+  "goals": [
+    {
+      "id": "g_platform",
+      "name": "Ship the platform re-architecture",
+      "sub": "the big technical bet",
+      "inits": [
+        {
+          "id": "i_mesh",
+          "name": "Service-mesh migration",
+          "moves": [
+            { "id": "m_mesh_1", "label": "Announce migration at eng all-hands", "done": true, "doneAt": "2026-07-04" },
+            { "id": "m_mesh_2", "label": "Review Marco’s rollout plan", "done": false },
+            { "id": "m_mesh_3", "label": "Approve staging cutover date", "done": false },
+            { "id": "m_mesh_4", "label": "Pick canary service list", "done": false },
+            { "id": "m_mesh_5", "label": "Budget review for infra spend", "done": false }
+          ],
+          "waiting": [
+            { "id": "w_marco", "who": "Marco", "what": "arch review draft", "since": "2026-07-11" }
+          ]
+        },
+        {
+          "id": "i_sunset",
+          "name": "Sunset legacy monolith APIs",
+          "moves": [
+            { "id": "m_sun_1", "label": "Sign off on API sunset comms", "done": false },
+            { "id": "m_sun_2", "label": "Confirm partner-migration timeline", "done": false }
+          ],
+          "waiting": [
+            { "id": "w_legal", "who": "Legal", "what": "data-retention sign-off", "since": "2026-07-05" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "g_org",
+      "name": "Grow the org without breaking it",
+      "sub": "people & structure",
+      "horizon": "half",
+      "inits": [
+        {
+          "id": "i_hire",
+          "name": "Hire two senior EMs",
+          "moves": [
+            { "id": "m_hire_1", "label": "Rewrite the EM job spec", "done": true, "doneAt": "2026-07-01" },
+            { "id": "m_hire_2", "label": "Debrief Thursday’s onsite panel", "done": false },
+            { "id": "m_hire_3", "label": "Close comp band with recruiting", "done": false }
+          ],
+          "waiting": [
+            { "id": "w_priya", "who": "Priya", "what": "headcount plan", "since": "2026-07-07" }
+          ]
+        },
+        {
+          "id": "i_ladder",
+          "name": "Roll out career ladder v2",
+          "moves": [
+            { "id": "m_lad_1", "label": "Draft ladder v2 with HR", "done": false },
+            { "id": "m_lad_2", "label": "Socialize draft with staff+ ICs", "done": false }
+          ],
+          "waiting": []
+        }
+      ]
+    },
+    {
+      "id": "g_incidents",
+      "name": "Cut incident load in half",
+      "sub": "reliability & on-call health",
+      "inits": [
+        {
+          "id": "i_slo",
+          "name": "SLO program for top services",
+          "moves": [
+            { "id": "m_slo_1", "label": "Kick off SLO workshop with staff eng", "done": true, "doneAt": "2026-07-09" },
+            { "id": "m_slo_2", "label": "Pick the top 5 services for SLOs", "done": false }
+          ],
+          "waiting": [
+            { "id": "w_sam", "who": "Sam", "what": "error-budget dashboard", "since": "2026-07-01" }
+          ]
+        },
+        {
+          "id": "i_oncall",
+          "name": "On-call rotation revamp",
+          "moves": [
+            { "id": "m_onc_1", "label": "Approve new rotation schedule", "done": true, "doneAt": "2026-06-27" },
+            { "id": "m_onc_2", "label": "Announce comp change for on-call", "done": true, "doneAt": "2026-07-10" }
+          ],
+          "waiting": []
+        }
+      ]
+    }
+  ]
+}

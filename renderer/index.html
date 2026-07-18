@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trailmap</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1 id="title-text">Trailmap</h1>
+    <div class="momentum" id="momentum" aria-live="polite"></div>
+  </div>
+  <p class="subtitle">Every checkmark fills a ring. The rings answer “is the grind adding up?”</p>
+
+  <div class="toolrow">
+    <button id="editToggle" aria-pressed="false">✎ Edit the map</button>
+  </div>
+
+  <div class="hero" id="hero"></div>
+  <div id="goals"></div>
+  <button class="addgoal" id="addgoal" hidden>＋ Add a quarterly priority</button>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

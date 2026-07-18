@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Quarter Map</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --good: #0ca30c;
+    --warn: #fab219;
+    --warn-text: #8a5a00;
+    --crit: #d03b3b;
+    --good-text: #006300;
+    --c1: #2a78d6; --c2: #1baf7a; --c3: #eda100; --c4: #008300;
+    --c5: #4a3aa7; --c6: #e34948; --c7: #e87ba4; --c8: #eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --good-text: #0ca30c;
+      --warn-text: #fab219;
+      --c1: #3987e5; --c2: #199e70; --c3: #c98500; --c4: #008300;
+      --c5: #9085e9; --c6: #e66767; --c7: #d55181; --c8: #d95926;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 26px 20px 56px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  .topbar { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 21px; font-weight: 650; margin: 0; }
+  h1 input {
+    font: inherit; color: inherit; background: transparent;
+    border: none; border-bottom: 1.5px dashed var(--baseline); outline: none; width: 300px;
+  }
+  .momentum { font-size: 13px; color: var(--ink-2); margin-left: auto; }
+  .momentum b { color: var(--good-text); font-weight: 650; }
+  .subtitle { color: var(--ink-2); font-size: 13.5px; margin: 0 0 14px; }
+
+  .toolrow { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .toolrow button {
+    font-size: 12.5px; color: var(--ink-2); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 7px; padding: 6px 13px; cursor: pointer;
+  }
+  .toolrow button:hover { border-color: var(--baseline); }
+  .toolrow button.active { background: var(--ink); color: var(--surface-1); border-color: var(--ink); }
+
+  .hero {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .hero .sun { font-size: 20px; }
+  .hero .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .hero .move { font-size: 15.5px; font-weight: 600; margin-top: 2px; }
+  .hero .why { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .hero .actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+  .hero button {
+    border-radius: 8px; font-size: 13px; font-weight: 600; padding: 8px 16px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--ink-2);
+  }
+  .hero button.primary { background: var(--ink); color: var(--surface-1); border-color: var(--ink); }
+  .hero.alldone { color: var(--good-text); font-weight: 600; }
+
+  .goal { display: flex; margin-bottom: 10px; }
+  .goal-left {
+    width: 190px; flex-shrink: 0; padding: 14px 10px 14px 0;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+  }
+  .ring { position: relative; width: 74px; height: 74px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 650; }
+  .goal-left .gname { font-size: 13.5px; font-weight: 650; margin-top: 10px; line-height: 1.3; }
+  .goal-left .gsub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .trunk { width: 26px; flex-shrink: 0; position: relative; }
+  .trunk svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .goal-right { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 8px 0; min-width: 0; }
+
+  .init { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px 10px; }
+  .init-head { display: flex; align-items: baseline; gap: 10px; }
+  .init-head .iname { font-size: 13.5px; font-weight: 600; }
+  .init-head .ipct { font-size: 11.5px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .initbar { height: 4px; border-radius: 2px; background: var(--grid); margin: 7px 0 9px; overflow: hidden; }
+  .initbar div { height: 100%; border-radius: 2px; transition: width 0.6s cubic-bezier(.22,1,.36,1); }
+
+  .move-row { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; }
+  .move-row .chk {
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid var(--baseline); background: transparent; cursor: pointer;
+    color: transparent; font-size: 10.5px; line-height: 1; padding: 0;
+  }
+  .move-row .chk:hover { border-color: var(--ink-2); color: var(--muted); }
+  .move-row.done { color: var(--muted); text-decoration: line-through; }
+  .move-row.done .chk { border: none; color: var(--surface-1); }
+  .later-note { font-size: 11.5px; color: var(--muted); padding: 3px 0 0 27px; cursor: pointer; }
+  .later-note:hover { color: var(--ink-2); }
+  .shipped-note { font-size: 11.5px; color: var(--muted); padding: 3px 0 0 27px; }
+
+  .wait-shelf { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--grid); }
+  .wait-shelf .shelf-lbl { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; align-self: center; margin-right: 2px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; border: 1px solid var(--border); border-radius: 999px;
+    padding: 3.5px 10px 3.5px 8px; color: var(--ink-2); background: var(--page); cursor: pointer;
+  }
+  .chip:hover { border-color: var(--baseline); }
+  .chip .age { font-weight: 650; font-size: 11px; }
+  .chip .who { font-weight: 600; color: var(--ink); }
+  .chip.warn .age { color: var(--warn-text); }
+  .chip.crit .age { color: var(--crit); }
+  .chip .icon { font-size: 11px; }
+
+  /* edit mode */
+  .editbar { display: flex; gap: 6px; margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--grid); flex-wrap: wrap; }
+  .editbar button, .goal-edit button, .addgoal {
+    font-size: 11.5px; color: var(--ink-2); background: transparent;
+    border: 1px solid var(--border); border-radius: 6px; padding: 3.5px 9px; cursor: pointer;
+  }
+  .editbar button:hover, .goal-edit button:hover, .addgoal:hover { border-color: var(--baseline); color: var(--ink); }
+  .goal-edit { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+  .del { color: var(--crit) !important; border-color: transparent !important; }
+  .rowdel {
+    margin-left: auto; border: none; background: none; color: var(--muted);
+    cursor: pointer; font-size: 12px; padding: 0 2px;
+  }
+  .rowdel:hover { color: var(--crit); }
+  .inline-form { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .inline-form input {
+    font-size: 12.5px; padding: 5px 9px; border: 1px solid var(--baseline);
+    border-radius: 6px; background: var(--surface-1); color: var(--ink); outline: none; flex: 1; min-width: 110px;
+  }
+  .inline-form button {
+    font-size: 12px; padding: 5px 11px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--ink); color: var(--surface-1);
+  }
+  .addgoal { margin: 6px 0 0; padding: 8px 14px !important; width: 100%; border-style: dashed !important; }
+
+  /* data panel */
+  details.data { margin-top: 28px; font-size: 12.5px; color: var(--ink-2); }
+  details.data summary { cursor: pointer; color: var(--muted); }
+  details.data textarea {
+    width: 100%; height: 130px; margin-top: 8px; font-family: ui-monospace, monospace; font-size: 11px;
+    background: var(--surface-1); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+  }
+  details.data .databtns { display: flex; gap: 8px; margin-top: 6px; }
+  details.data .databtns button {
+    font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--ink-2);
+  }
+  .datahint { margin-top: 8px; line-height: 1.5; color: var(--muted); }
+  #savemsg { color: var(--good-text); font-size: 12px; align-self: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1 id="title-wrap"><span id="title-text">Q3 — The Quarter Map</span></h1>
+    <div class="momentum" id="momentum"></div>
+  </div>
+  <p class="subtitle">Every checkmark fills a ring. The rings answer “is the grind adding up?”</p>
+
+  <div class="toolrow">
+    <button id="editToggle">✎ Edit the map</button>
+  </div>
+
+  <div class="hero" id="hero"></div>
+  <div id="goals"></div>
+  <button class="addgoal" id="addgoal" style="display:none">＋ Add a quarterly priority</button>
+
+  <details class="data">
+    <summary>Your data — export, import, or ask Claude</summary>
+    <textarea id="databox" spellcheck="false"></textarea>
+    <div class="databtns">
+      <button id="btn-export">⇩ Put current data in the box (copy it somewhere safe)</button>
+      <button id="btn-import">⇧ Load data from the box</button>
+      <span id="savemsg"></span>
+    </div>
+    <div class="datahint">
+      This page keeps changes only while it's open — it can't write to your disk by itself.
+      Two ways to make changes stick: <b>(1)</b> export the data above and paste it back next time,
+      or — much easier — <b>(2)</b> tell Claude what changed (“mark the EM debrief done, add an initiative for the platform audit”)
+      and it will rebuild this page with the new state baked in.
+    </div>
+  </details>
+</div>
+
+<script>
+// ================= state =================
+const COLORS = ['--c1','--c2','--c3','--c4','--c5','--c6','--c7','--c8'];
+let uid = 1000;
+const nid = () => 'n' + (uid++);
+const daysAgoISO = d => { const t = new Date(); t.setDate(t.getDate() - d); return t.toISOString().slice(0, 10); };
+
+function sampleData() {
+  return {
+    title: 'Q3 — The Quarter Map',
+    goals: [
+      { id: nid(), name: 'Ship the platform re-architecture', sub: 'the big technical bet', inits: [
+        { id: nid(), name: 'Service-mesh migration', moves: [
+            { id: nid(), label: 'Announce migration at eng all-hands', done: true, doneAt: daysAgoISO(9) },
+            { id: nid(), label: 'Review Marco’s rollout plan', done: false },
+            { id: nid(), label: 'Approve staging cutover date', done: false },
+            { id: nid(), label: 'Pick canary service list', done: false },
+            { id: nid(), label: 'Budget review for infra spend', done: false },
+          ], waiting: [ { id: nid(), who: 'Marco', what: 'arch review draft', since: daysAgoISO(2) } ] },
+        { id: nid(), name: 'Sunset legacy monolith APIs', moves: [
+            { id: nid(), label: 'Sign off on API sunset comms', done: false },
+            { id: nid(), label: 'Confirm partner-migration timeline', done: false },
+          ], waiting: [ { id: nid(), who: 'Legal', what: 'data-retention sign-off', since: daysAgoISO(8) } ] },
+      ]},
+      { id: nid(), name: 'Grow the org without breaking it', sub: 'people & structure', inits: [
+        { id: nid(), name: 'Hire two senior EMs', moves: [
+            { id: nid(), label: 'Rewrite the EM job spec', done: true, doneAt: daysAgoISO(12) },
+            { id: nid(), label: 'Debrief Thursday’s onsite panel', done: false },
+            { id: nid(), label: 'Close comp band with recruiting', done: false },
+          ], waiting: [ { id: nid(), who: 'Priya', what: 'headcount plan', since: daysAgoISO(6) } ] },
+        { id: nid(), name: 'Roll out career ladder v2', moves: [
+            { id: nid(), label: 'Draft ladder v2 with HR', done: false },
+            { id: nid(), label: 'Socialize draft with staff+ ICs', done: false },
+          ], waiting: [] },
+      ]},
+      { id: nid(), name: 'Cut incident load in half', sub: 'reliability & on-call health', inits: [
+        { id: nid(), name: 'SLO program for top services', moves: [
+            { id: nid(), label: 'Kick off SLO workshop with staff eng', done: true, doneAt: daysAgoISO(4) },
+            { id: nid(), label: 'Pick the top 5 services for SLOs', done: false },
+          ], waiting: [ { id: nid(), who: 'Sam', what: 'error-budget dashboard', since: daysAgoISO(12) } ] },
+        { id: nid(), name: 'On-call rotation revamp', moves: [
+            { id: nid(), label: 'Approve new rotation schedule', done: true, doneAt: daysAgoISO(16) },
+            { id: nid(), label: 'Announce comp change for on-call', done: true, doneAt: daysAgoISO(3) },
+          ], waiting: [] },
+      ]},
+    ],
+  };
+}
+let S = sampleData();
+let editMode = false;
+let heroSkip = 0;
+let openForm = null;      // {type, targetId} — which inline form is open
+const expanded = new Set(); // initiative ids with "later" list expanded
+
+// ================= helpers =================
+const goalColor = g => `var(${COLORS[S.goals.indexOf(g) % COLORS.length]})`;
+const days = iso => Math.max(0, Math.round((new Date() - new Date(iso)) / 86400000));
+const ageClass = d => d >= 10 ? 'crit' : d >= 5 ? 'warn' : 'ok';
+const VISIBLE_OPEN = 3;   // Now/Later rule
+const VISIBLE_DONE = 2;
+
+function initPct(it) {
+  if (!it.moves.length) return 0;
+  return it.moves.filter(m => m.done).length / it.moves.length;
+}
+function goalPct(g) {
+  const all = g.inits.flatMap(it => it.moves);
+  if (!all.length) return 0;
+  return all.filter(m => m.done).length / all.length;
+}
+function momentumCounts() {
+  const all = S.goals.flatMap(g => g.inits.flatMap(it => it.moves)).filter(m => m.done && m.doneAt);
+  const week = all.filter(m => days(m.doneAt) <= 7).length;
+  return { total: all.length, week };
+}
+function openMoves() {
+  const out = [];
+  S.goals.forEach(g => g.inits.forEach(it => {
+    it.moves.filter(m => !m.done).slice(0, VISIBLE_OPEN).forEach(m => out.push({ g, it, m }));
+  }));
+  return out;
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ================= actions =================
+function completeMove(id) {
+  S.goals.forEach(g => g.inits.forEach(it => it.moves.forEach(m => {
+    if (m.id === id && !m.done) { m.done = true; m.doneAt = new Date().toISOString().slice(0, 10); }
+  })));
+  render();
+}
+function uncompleteMove(id) {
+  S.goals.forEach(g => g.inits.forEach(it => it.moves.forEach(m => {
+    if (m.id === id && m.done) { m.done = false; delete m.doneAt; }
+  })));
+  render();
+}
+function receiveWaiting(itId, wId) {
+  S.goals.forEach(g => g.inits.forEach(it => {
+    if (it.id === itId) it.waiting = it.waiting.filter(w => w.id !== wId);
+  }));
+  render();
+}
+function deleteMove(id) {
+  S.goals.forEach(g => g.inits.forEach(it => { it.moves = it.moves.filter(m => m.id !== id); }));
+  render();
+}
+function bumpMove(id) {
+  S.goals.forEach(g => g.inits.forEach(it => {
+    const i = it.moves.findIndex(m => m.id === id);
+    if (i > 0) { const [m] = it.moves.splice(i, 1); it.moves.unshift(m); }
+  }));
+  render();
+}
+function deleteInit(id) {
+  S.goals.forEach(g => { g.inits = g.inits.filter(it => it.id !== id); });
+  render();
+}
+function deleteGoal(id) { S.goals = S.goals.filter(g => g.id !== id); render(); }
+
+// ================= inline forms =================
+function formHTML(type) {
+  if (type === 'wait') return `
+    <input placeholder="Who (person/team)" id="f1">
+    <input placeholder="What you're waiting for" id="f2">
+    <button id="fok">Add</button>`;
+  if (type === 'goal') return `
+    <input placeholder="Priority name (e.g. Ship the re-architecture)" id="f1">
+    <input placeholder="Short tagline (optional)" id="f2">
+    <button id="fok">Add</button>`;
+  return `<input placeholder="${type === 'init' ? 'Initiative name' : 'Next move — start with a verb'}" id="f1">
+    <button id="fok">Add</button>`;
+}
+function mountForm(container, type, onsubmit) {
+  const f = document.createElement('div');
+  f.className = 'inline-form';
+  f.innerHTML = formHTML(type);
+  container.appendChild(f);
+  const i1 = f.querySelector('#f1');
+  i1.focus();
+  const submit = () => {
+    if (!i1.value.trim()) return;
+    onsubmit(i1.value.trim(), f.querySelector('#f2') ? f.querySelector('#f2').value.trim() : '');
+    openForm = null; render();
+  };
+  f.querySelector('#fok').addEventListener('click', submit);
+  f.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submit();
+    if (e.key === 'Escape') { openForm = null; render(); }
+  });
+}
+function renameInline(el, current, save) {
+  const input = document.createElement('input');
+  input.value = current;
+  input.style.cssText = 'font:inherit;color:inherit;background:transparent;border:none;border-bottom:1.5px dashed var(--baseline);outline:none;width:90%;';
+  el.replaceChildren(input);
+  input.focus(); input.select();
+  const done = () => { if (input.value.trim()) save(input.value.trim()); render(); };
+  input.addEventListener('blur', done);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') render(); });
+}
+
+// ================= render =================
+function render() {
+  // title
+  const titleEl = document.getElementById('title-text');
+  titleEl.textContent = S.title;
+  titleEl.style.cursor = editMode ? 'text' : 'default';
+  titleEl.onclick = editMode ? () => renameInline(titleEl, S.title, v => { S.title = v; }) : null;
+  document.title = S.title;
+
+  // momentum
+  const mc = momentumCounts();
+  document.getElementById('momentum').innerHTML =
+    `<b>▲ ${mc.total} move${mc.total === 1 ? '' : 's'} shipped</b> this quarter · ${mc.week} this week`;
+
+  // edit toggle
+  const et = document.getElementById('editToggle');
+  et.classList.toggle('active', editMode);
+  et.textContent = editMode ? '✓ Done editing' : '✎ Edit the map';
+  document.getElementById('addgoal').style.display = editMode ? 'block' : 'none';
+
+  // hero
+  const open = openMoves();
+  const hero = document.getElementById('hero');
+  hero.classList.toggle('alldone', open.length === 0);
+  if (open.length === 0) {
+    hero.innerHTML = '🎉 Every visible move is shipped. Promote something from “later,” or go home early.';
+  } else {
+    const sorted = [...open].sort((a, b) => goalPct(a.g) - goalPct(b.g));
+    const pick = sorted[heroSkip % sorted.length];
+    hero.innerHTML = `
+      <div class="sun">☀️</div>
+      <div>
+        <div class="lbl">Today’s move — before the meetings eat you</div>
+        <div class="move"><span style="color:${goalColor(pick.g)}">●</span> ${esc(pick.m.label)}</div>
+        <div class="why">because “${esc(pick.g.name)}” has the least momentum right now</div>
+      </div>
+      <div class="actions">
+        <button id="hero-skip" title="Suggest something else">↻</button>
+        <button class="primary" id="hero-done">Done ✓</button>
+      </div>`;
+    document.getElementById('hero-done').onclick = () => completeMove(pick.m.id);
+    document.getElementById('hero-skip').onclick = () => { heroSkip++; render(); };
+  }
+
+  // goals
+  const root = document.getElementById('goals');
+  root.innerHTML = '';
+  S.goals.forEach(g => {
+    const c = goalColor(g);
+    const pct = goalPct(g);
+    const sec = document.createElement('div');
+    sec.className = 'goal';
+    const r = 30, circ = 2 * Math.PI * r;
+    sec.innerHTML = `
+      <div class="goal-left">
+        <div class="ring">
+          <svg width="74" height="74" viewBox="0 0 74 74">
+            <circle cx="37" cy="37" r="${r}" fill="none" stroke="var(--grid)" stroke-width="7"/>
+            <circle cx="37" cy="37" r="${r}" fill="none" stroke="${c}" stroke-width="7"
+              stroke-linecap="round" stroke-dasharray="${circ * pct} ${circ}"
+              style="transition: stroke-dasharray 0.6s ease;"/>
+          </svg>
+          <div class="pct">${pct === 1 ? '✓' : Math.round(pct * 100) + '%'}</div>
+        </div>
+        <div>
+          <div class="gname"></div>
+          <div class="gsub"></div>
+        </div>
+        <div class="goal-edit" style="display:${editMode ? 'flex' : 'none'}">
+          <button data-act="add-init">＋ initiative</button>
+          <button data-act="rename-goal">rename</button>
+          <button data-act="del-goal" class="del">delete</button>
+        </div>
+      </div>
+      <div class="trunk"><svg preserveAspectRatio="none" viewBox="0 0 26 100">
+        ${g.inits.length > 1
+          ? `<path d="M 0 50 C 14 50, 12 25, 26 25" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.5"/>
+             <path d="M 0 50 C 14 50, 12 75, 26 75" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.5"/>`
+          : `<path d="M 0 50 L 26 50" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.5"/>`}
+      </svg></div>
+      <div class="goal-right"></div>`;
+    sec.querySelector('.gname').textContent = g.name;
+    sec.querySelector('.gsub').textContent = g.sub || '';
+    if (editMode) {
+      sec.querySelector('[data-act=add-init]').onclick = () => { openForm = { type: 'init', id: g.id }; render(); };
+      sec.querySelector('[data-act=rename-goal]').onclick = (e) => {
+        renameInline(sec.querySelector('.gname'), g.name, v => { g.name = v; });
+      };
+      sec.querySelector('[data-act=del-goal]').onclick = () => deleteGoal(g.id);
+    }
+    const right = sec.querySelector('.goal-right');
+
+    g.inits.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'init';
+      const ip = initPct(it);
+      card.innerHTML = `
+        <div class="init-head">
+          <span class="iname"></span>
+          <span class="ipct">${Math.round(ip * 100)}%</span>
+        </div>
+        <div class="initbar"><div style="width:${ip * 100}%; background:${c};"></div></div>`;
+      card.querySelector('.iname').textContent = it.name;
+
+      // done moves (most recent VISIBLE_DONE)
+      const doneMoves = it.moves.filter(m => m.done);
+      const shownDone = doneMoves.slice(-VISIBLE_DONE);
+      const hiddenDone = doneMoves.length - shownDone.length;
+      shownDone.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'move-row done';
+        row.innerHTML = `<button class="chk" style="background:${c}" title="${editMode ? 'Un-complete' : 'Done'}">✓</button><span></span>`;
+        row.querySelector('span').textContent = m.label;
+        if (editMode) row.querySelector('.chk').onclick = () => uncompleteMove(m.id);
+        card.appendChild(row);
+      });
+      if (hiddenDone > 0) {
+        const sn = document.createElement('div');
+        sn.className = 'shipped-note';
+        sn.textContent = `✓ ${hiddenDone} more shipped earlier`;
+        card.appendChild(sn);
+      }
+
+      // open moves (first VISIBLE_OPEN; rest = later)
+      const openM = it.moves.filter(m => !m.done);
+      const isExpanded = expanded.has(it.id);
+      const shownOpen = isExpanded ? openM : openM.slice(0, VISIBLE_OPEN);
+      shownOpen.forEach((m, idx) => {
+        const row = document.createElement('div');
+        row.className = 'move-row';
+        row.innerHTML = `<button class="chk" title="Done">✓</button><span></span>` +
+          (editMode ? `<button class="rowdel" data-a="bump" title="Move to top">↑</button><button class="rowdel" data-a="del" title="Delete">✕</button>` : '');
+        row.querySelector('span').textContent = m.label;
+        row.querySelector('.chk').onclick = () => completeMove(m.id);
+        if (editMode) {
+          row.querySelector('[data-a=bump]').onclick = () => bumpMove(m.id);
+          row.querySelector('[data-a=del]').onclick = () => deleteMove(m.id);
+        }
+        card.appendChild(row);
+      });
+      const laterCount = openM.length - Math.min(openM.length, VISIBLE_OPEN);
+      if (laterCount > 0 && !isExpanded) {
+        const ln = document.createElement('div');
+        ln.className = 'later-note';
+        ln.textContent = `+ ${laterCount} more waiting invisibly — click to peek`;
+        ln.onclick = () => { expanded.add(it.id); render(); };
+        card.appendChild(ln);
+      } else if (isExpanded && openM.length > VISIBLE_OPEN) {
+        const ln = document.createElement('div');
+        ln.className = 'later-note';
+        ln.textContent = '– hide the later pile again';
+        ln.onclick = () => { expanded.delete(it.id); render(); };
+        card.appendChild(ln);
+      }
+
+      // waiting shelf
+      if (it.waiting.length > 0) {
+        const shelf = document.createElement('div');
+        shelf.className = 'wait-shelf';
+        shelf.innerHTML = `<span class="shelf-lbl">Waiting on</span>`;
+        it.waiting.forEach(w => {
+          const d = days(w.since);
+          const chip = document.createElement('span');
+          chip.className = 'chip ' + ageClass(d);
+          chip.title = 'Click to mark received';
+          chip.innerHTML = `<span class="icon">${d >= 10 ? '⚠' : '⏳'}</span><span><span class="who"></span> — <span class="what"></span></span><span class="age">${d}d</span>`;
+          chip.querySelector('.who').textContent = w.who;
+          chip.querySelector('.what').textContent = w.what;
+          chip.onclick = () => receiveWaiting(it.id, w.id);
+          shelf.appendChild(chip);
+        });
+        card.appendChild(shelf);
+      }
+
+      // edit bar
+      if (editMode) {
+        const eb = document.createElement('div');
+        eb.className = 'editbar';
+        eb.innerHTML = `
+          <button data-a="add-move">＋ move</button>
+          <button data-a="add-wait">＋ waiting on</button>
+          <button data-a="rename">rename</button>
+          <button data-a="del" class="del">delete initiative</button>`;
+        eb.querySelector('[data-a=add-move]').onclick = () => { openForm = { type: 'move', id: it.id }; render(); };
+        eb.querySelector('[data-a=add-wait]').onclick = () => { openForm = { type: 'wait', id: it.id }; render(); };
+        eb.querySelector('[data-a=rename]').onclick = () => renameInline(card.querySelector('.iname'), it.name, v => { it.name = v; });
+        eb.querySelector('[data-a=del]').onclick = () => deleteInit(it.id);
+        card.appendChild(eb);
+      }
+
+      // open inline form?
+      if (openForm && openForm.id === it.id && (openForm.type === 'move' || openForm.type === 'wait')) {
+        mountForm(card, openForm.type, (v1, v2) => {
+          if (openForm.type === 'move') it.moves.push({ id: nid(), label: v1, done: false });
+          else it.waiting.push({ id: nid(), who: v1, what: v2 || '…', since: new Date().toISOString().slice(0, 10) });
+        });
+      }
+      right.appendChild(card);
+    });
+
+    // add-initiative form
+    if (openForm && openForm.id === g.id && openForm.type === 'init') {
+      const holder = document.createElement('div');
+      holder.className = 'init';
+      mountForm(holder, 'init', v1 => { g.inits.push({ id: nid(), name: v1, moves: [], waiting: [] }); });
+      right.appendChild(holder);
+    }
+    root.appendChild(sec);
+  });
+
+  // add-goal form
+  const ag = document.getElementById('addgoal');
+  if (openForm && openForm.type === 'goal') {
+    if (!document.getElementById('goalform')) {
+      const holder = document.createElement('div');
+      holder.id = 'goalform';
+      holder.className = 'init';
+      mountForm(holder, 'goal', (v1, v2) => { S.goals.push({ id: nid(), name: v1, sub: v2, inits: [] }); });
+      root.appendChild(holder);
+    }
+  }
+}
+
+// ================= wiring =================
+document.getElementById('editToggle').addEventListener('click', () => { editMode = !editMode; openForm = null; render(); });
+document.getElementById('addgoal').addEventListener('click', () => { openForm = { type: 'goal' }; render(); });
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const box = document.getElementById('databox');
+  box.value = JSON.stringify(S, null, 1);
+  box.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.getElementById('savemsg').textContent = '✓ in the box (and copied)';
+  setTimeout(() => document.getElementById('savemsg').textContent = '', 2500);
+});
+document.getElementById('btn-import').addEventListener('click', () => {
+  try {
+    const d = JSON.parse(document.getElementById('databox').value);
+    if (!d.goals) throw new Error('no goals');
+    S = d; heroSkip = 0; render();
+    document.getElementById('savemsg').textContent = '✓ loaded';
+  } catch (e) {
+    document.getElementById('savemsg').textContent = '✗ that didn’t parse as Quarter Map data';
+  }
+  setTimeout(() => document.getElementById('savemsg').textContent = '', 2500);
+});
+
+render();
+</script>
+</body>
+</html>
