@@ -3,6 +3,7 @@
 import {
   CONSTANTS, ageDays, ageClass, initPct, goalPct, momentumCounts,
   pickTodaysMove, goalHorizon, nextHorizon, newId, quarterLabel,
+  dueTier, toISODate, findMoveById, todayItems, pruneToday, suggestionReason,
 } from './logic.js';
 
 const COLORS = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8'];
@@ -29,19 +30,12 @@ function mutate(fn) {
 }
 
 // ---------- helpers ----------
-const goalColor = g => `var(${COLORS[S.goals.indexOf(g) % COLORS.length]})`;
-const todayISO = () => {
-  const d = todayNow();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const goalColor = g => g ? `var(${COLORS[S.goals.indexOf(g) % COLORS.length]})` : 'var(--muted)';
+const todayISO = () => toISODate(todayNow());
+const findMove = id => {
+  const f = findMoveById(S, id);
+  return f ? { g: f.goal, it: f.init, m: f.move } : null;
 };
-
-function findMove(id) {
-  for (const g of S.goals) for (const it of g.inits) {
-    const m = it.moves.find(m => m.id === id);
-    if (m) return { g, it, m };
-  }
-  return null;
-}
 
 // ---------- actions ----------
 function completeMove(id) {
@@ -59,6 +53,47 @@ function uncompleteMove(id) {
 function deleteMove(id) {
   mutate(() => {
     for (const g of S.goals) for (const it of g.inits) it.moves = it.moves.filter(m => m.id !== id);
+    S.loose = (S.loose || []).filter(m => m.id !== id);
+    S.today = (S.today || []).filter(t => t.moveId !== id);
+  });
+}
+
+// ---------- Today workbench (v0.2) ----------
+function isPinned(moveId) {
+  return (S.today || []).some(t => t.moveId === moveId);
+}
+function addToToday(moveId) {
+  if (isPinned(moveId)) return;
+  mutate(() => { (S.today ||= []).push({ id: newId('t'), moveId, addedOn: todayISO() }); });
+}
+function removeFromToday(moveId) {
+  mutate(() => { S.today = (S.today || []).filter(t => t.moveId !== moveId); });
+}
+function quickAddToday(label) {
+  mutate(() => {
+    const m = { id: newId('m'), label, done: false };
+    (S.loose ||= []).push(m);
+    (S.today ||= []).push({ id: newId('t'), moveId: m.id, addedOn: todayISO() });
+  });
+}
+function setDue(moveId, iso) {
+  mutate(() => {
+    const f = findMove(moveId);
+    if (!f) return;
+    if (iso) { f.m.due = iso; f.m.lastDueTier = 0; }
+    else { delete f.m.due; delete f.m.lastDueTier; }
+  });
+}
+function fileLooseInto(moveId, initId) {
+  mutate(() => {
+    const idx = (S.loose || []).findIndex(m => m.id === moveId);
+    if (idx < 0) return;
+    for (const g of S.goals) for (const it of g.inits) {
+      if (it.id === initId) {
+        it.moves.push(S.loose.splice(idx, 1)[0]);
+        return;
+      }
+    }
   });
 }
 function bumpMove(id) {
@@ -159,6 +194,7 @@ function render() {
 
   renderHero(today);
   renderGoals(today);
+  renderLoose(today);
 
   if (openForm && openForm.type === 'goal' && !document.getElementById('goalform')) {
     const holder = document.createElement('div');
@@ -169,32 +205,202 @@ function render() {
   }
 }
 
+function dueChip(m, today) {
+  const tier = dueTier(m, today);
+  if (!m.due || m.done) return null;
+  const chip = document.createElement('span');
+  chip.className = 'due-chip' + (tier === 2 ? ' overdue' : tier === 1 ? ' duetoday' : '');
+  const t = toISODate(today);
+  if (tier === 2) {
+    const days = Math.round((new Date(t) - new Date(m.due)) / 86400000);
+    chip.textContent = `⚑ overdue ${days}d`;
+  } else if (tier === 1) chip.textContent = '⚑ due today';
+  else chip.textContent = `⚑ due ${m.due.slice(5).replace('-', '/')}`;
+  return chip;
+}
+
 function renderHero(today) {
   const hero = $('hero');
-  const pick = pickTodaysMove(S, heroSkip);
-  hero.classList.toggle('alldone', !pick);
-  if (!pick) {
-    hero.textContent = '🎉 Every visible move is shipped. Promote something from “later,” or go home early.';
-    return;
-  }
+  hero.classList.remove('alldone');
   hero.replaceChildren();
-  const sun = document.createElement('div'); sun.className = 'sun'; sun.textContent = '☀️';
-  const mid = document.createElement('div');
-  const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = 'Today’s move — before the meetings eat you';
-  const mv = document.createElement('div'); mv.className = 'move';
-  const dot = document.createElement('span'); dot.style.color = goalColor(pick.goal); dot.textContent = '● ';
-  mv.append(dot, document.createTextNode(pick.move.label));
-  const why = document.createElement('div'); why.className = 'why';
-  why.textContent = `because “${pick.goal.name}” has the least momentum right now`;
-  mid.append(lbl, mv, why);
-  const actions = document.createElement('div'); actions.className = 'actions';
-  const skip = document.createElement('button'); skip.title = 'Suggest something else'; skip.textContent = '↻';
-  skip.setAttribute('aria-label', 'Suggest a different move');
-  skip.onclick = () => { heroSkip++; render(); };
-  const done = document.createElement('button'); done.className = 'primary'; done.textContent = 'Done ✓';
-  done.onclick = () => completeMove(pick.move.id);
-  actions.append(skip, done);
-  hero.append(sun, mid, actions);
+
+  const head = document.createElement('div'); head.className = 'today-head';
+  const lbl = document.createElement('div'); lbl.className = 'lbl';
+  lbl.textContent = '☀️ Today — before the meetings eat you';
+  head.appendChild(lbl);
+  hero.appendChild(head);
+
+  // pinned items
+  const items = todayItems(S);
+  for (const { entry, goal, init, move } of items) {
+    const row = document.createElement('div');
+    row.className = 'today-item' + (move.done ? ' done' : '');
+    const chk = document.createElement('button'); chk.className = 'chk'; chk.textContent = '✓';
+    if (move.done) { chk.style.background = goalColor(goal); chk.classList.add('checked'); }
+    else { chk.title = 'Done'; chk.setAttribute('aria-label', `Complete: ${move.label}`); chk.onclick = () => completeMove(move.id); }
+    const mid = document.createElement('div'); mid.className = 'ti-mid';
+    const lab = document.createElement('span'); lab.className = 'ti-label'; lab.textContent = move.label;
+    const src = document.createElement('span'); src.className = 'ti-src';
+    src.textContent = init ? init.name : 'loose end';
+    const dot = document.createElement('span'); dot.className = 'ti-dot'; dot.style.background = goalColor(goal);
+    mid.append(dot, lab, src);
+    const d = dueChip(move, today); if (d) mid.appendChild(d);
+    const unpin = document.createElement('button'); unpin.className = 'ti-unpin'; unpin.textContent = '✕';
+    unpin.title = 'Remove from Today (keeps the task)';
+    unpin.setAttribute('aria-label', `Remove from Today: ${move.label}`);
+    unpin.onclick = () => removeFromToday(move.id);
+    row.append(chk, mid, unpin);
+    row.addEventListener('contextmenu', e => openContextMenu(e, move.id));
+    hero.appendChild(row);
+  }
+
+  // quick add
+  const qa = document.createElement('div'); qa.className = 'quickadd';
+  const input = document.createElement('input');
+  input.id = 'quickadd';
+  input.placeholder = items.length ? 'Add another to-do for today…' : 'Add a to-do for today…';
+  input.setAttribute('aria-label', 'Add a to-do for today');
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && input.value.trim()) quickAddToday(input.value.trim());
+  });
+  qa.appendChild(input);
+  hero.appendChild(qa);
+
+  // suggestion fills the gap when nothing is pinned (or on demand via ↻)
+  const openPinned = items.filter(x => !x.move.done);
+  if (openPinned.length === 0) {
+    const pick = pickTodaysMove(S, heroSkip, today);
+    const sug = document.createElement('div'); sug.className = 'suggestion';
+    if (!pick) {
+      sug.classList.add('alldone');
+      sug.textContent = items.length
+        ? '🎉 Today is done. Add more, or go home proud.'
+        : '🎉 Every visible move is shipped. Promote something from “later,” or go home early.';
+    } else {
+      const slbl = document.createElement('div'); slbl.className = 'sug-lbl'; slbl.textContent = 'Suggestion';
+      const mv = document.createElement('div'); mv.className = 'move';
+      const dot = document.createElement('span'); dot.style.color = goalColor(pick.goal); dot.textContent = '● ';
+      mv.append(dot, document.createTextNode(pick.move.label));
+      const dch = dueChip(pick.move, today); if (dch) mv.appendChild(dch);
+      const why = document.createElement('div'); why.className = 'why';
+      why.textContent = suggestionReason(pick, today);
+      const actions = document.createElement('div'); actions.className = 'actions';
+      const skip = document.createElement('button'); skip.title = 'Suggest something else'; skip.textContent = '↻';
+      skip.setAttribute('aria-label', 'Suggest a different move');
+      skip.onclick = () => { heroSkip++; render(); };
+      const pin = document.createElement('button'); pin.textContent = '☀ Pin to Today';
+      pin.setAttribute('aria-label', `Pin to Today: ${pick.move.label}`);
+      pin.onclick = () => addToToday(pick.move.id);
+      const done = document.createElement('button'); done.className = 'primary'; done.textContent = 'Done ✓';
+      done.onclick = () => completeMove(pick.move.id);
+      actions.append(skip, pin, done);
+      const mid = document.createElement('div'); mid.append(slbl, mv, why);
+      sug.append(mid, actions);
+    }
+    hero.appendChild(sug);
+  }
+}
+
+// ---------- loose ends (v0.2) ----------
+function renderLoose(today) {
+  const existing = document.getElementById('loose-card');
+  if (existing) existing.remove();
+  const open = (S.loose || []).filter(m => !m.done);
+  if (!open.length) return;
+  const card = document.createElement('div');
+  card.id = 'loose-card';
+  card.className = 'init loose-card';
+  const head = document.createElement('div'); head.className = 'init-head';
+  const iname = document.createElement('span'); iname.className = 'iname'; iname.textContent = 'Loose ends';
+  const note = document.createElement('span'); note.className = 'ipct'; note.textContent = 'not tied to a goal — right-click to file';
+  head.append(iname, note);
+  card.appendChild(head);
+  for (const m of open) {
+    const row = document.createElement('div'); row.className = 'move-row';
+    const chk = document.createElement('button'); chk.className = 'chk'; chk.textContent = '✓';
+    chk.title = 'Done'; chk.setAttribute('aria-label', `Complete: ${m.label}`);
+    chk.onclick = () => completeMove(m.id);
+    const span = document.createElement('span'); span.textContent = m.label;
+    row.append(chk, span);
+    const d = dueChip(m, today); if (d) row.appendChild(d);
+    row.addEventListener('contextmenu', e => openContextMenu(e, m.id));
+    card.appendChild(row);
+  }
+  $('goals').after(card);
+}
+
+// ---------- context menu (v0.2; pure DOM — no platform APIs) ----------
+function closeContextMenu() {
+  document.getElementById('ctx-menu')?.remove();
+}
+function openContextMenu(e, moveId) {
+  e.preventDefault();
+  closeContextMenu();
+  const f = findMove(moveId);
+  if (!f || (f.m.done && !isPinned(moveId))) return;
+  const menu = document.createElement('div');
+  menu.id = 'ctx-menu';
+  menu.setAttribute('role', 'menu');
+  const add = (label, fn, cls) => {
+    const b = document.createElement('button');
+    b.setAttribute('role', 'menuitem');
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.onclick = (ev) => {
+      ev.stopPropagation(); // keep the document-level dismiss from racing what fn() opens
+      document.removeEventListener('click', closeContextMenu);
+      closeContextMenu();
+      fn();
+    };
+    menu.appendChild(b);
+  };
+  if (!f.m.done) {
+    if (isPinned(moveId)) add('✕ Remove from Today', () => removeFromToday(moveId));
+    else add('☀ Add to Today', () => addToToday(moveId));
+    if (f.m.due) {
+      add('⚑ Change due date…', () => promptDue(moveId, f.m.due));
+      add('Clear due date', () => setDue(moveId, null));
+    } else {
+      add('⚑ Set due date…', () => promptDue(moveId, ''));
+    }
+    if (!f.it) {
+      for (const g of S.goals) for (const it of g.inits) {
+        add(`→ file under: ${it.name}`, () => fileLooseInto(moveId, it.id), 'ctx-file');
+      }
+    }
+  }
+  add('🗑 Delete', () => deleteMove(moveId), 'ctx-del');
+  document.body.appendChild(menu);
+  const { innerWidth: W, innerHeight: H } = window;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.min(e.clientX, W - r.width - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, H - r.height - 8) + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', closeContextMenu, { once: true });
+    document.addEventListener('keydown', function esc(ev) {
+      if (ev.key === 'Escape') { closeContextMenu(); document.removeEventListener('keydown', esc); }
+    });
+  }, 0);
+}
+function promptDue(moveId, current) {
+  closeContextMenu();
+  const wrap = document.createElement('div');
+  wrap.id = 'ctx-menu';
+  wrap.addEventListener('click', e => e.stopPropagation()); // clicks inside must not dismiss
+  const input = document.createElement('input');
+  input.type = 'date';
+  input.value = current || todayISO();
+  const ok = document.createElement('button'); ok.textContent = 'Set due date';
+  ok.onclick = () => { if (input.value) setDue(moveId, input.value); closeContextMenu(); };
+  wrap.append(input, ok);
+  document.body.appendChild(wrap);
+  wrap.style.left = '50%'; wrap.style.top = '30%'; wrap.style.transform = 'translateX(-50%)';
+  setTimeout(() => document.addEventListener('click', closeContextMenu, { once: true }), 0);
+  input.focus();
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') ok.click();
+    if (e.key === 'Escape') closeContextMenu();
+  });
 }
 
 function renderGoals(today) {
@@ -328,6 +534,13 @@ function renderInit(g, it, c, today) {
     chk.onclick = () => completeMove(m.id);
     const span = document.createElement('span'); span.textContent = m.label;
     row.append(chk, span);
+    const dch = dueChip(m, today); if (dch) row.appendChild(dch);
+    if (isPinned(m.id)) {
+      const sun = document.createElement('span'); sun.className = 'pin-mark'; sun.textContent = '☀';
+      sun.title = 'On today’s list';
+      row.appendChild(sun);
+    }
+    row.addEventListener('contextmenu', e => openContextMenu(e, m.id));
     if (editMode) {
       const bump = document.createElement('button'); bump.className = 'rowdel'; bump.textContent = '↑';
       bump.title = 'Move to top'; bump.setAttribute('aria-label', `Move to top: ${m.label}`);
@@ -404,9 +617,14 @@ function renderInit(g, it, c, today) {
 // ---------- boot ----------
 async function boot() {
   S = await bridge.load();
+  if (pruneToday(S, todayNow())) persist(); // day rollover: yesterday's done items leave Today
   // external changes (plan §10): main watched the file and re-read it
   if (bridge.onExternalChange) {
-    bridge.onExternalChange(doc => { S = doc; heroSkip = 0; render(); });
+    bridge.onExternalChange(doc => {
+      S = doc; heroSkip = 0;
+      if (pruneToday(S, todayNow())) persist();
+      render();
+    });
   }
   wire();
   render();

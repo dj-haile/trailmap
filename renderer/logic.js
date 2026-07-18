@@ -62,6 +62,7 @@ export function quarterLabel(today) {
 export function momentumCounts(doc, today) {
   const qStart = quarterStartISO(today);
   const done = doc.goals.flatMap(g => g.inits.flatMap(it => it.moves))
+    .concat(doc.loose || []) // loose ends count toward momentum too (v0.2)
     .filter(m => m.done && typeof m.doneAt === 'string');
   return {
     quarter: done.filter(m => m.doneAt >= qStart).length,
@@ -69,7 +70,35 @@ export function momentumCounts(doc, today) {
   };
 }
 
-/** Open moves eligible for Today's Move: the visible (first VISIBLE_OPEN open) moves of every initiative. */
+/** ISO date (YYYY-MM-DD) for a Date in local time. */
+export function toISODate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Due tier for a move on `today`: 0 not due / no date, 1 due today, 2 overdue. Done moves are never due. */
+export function dueTier(move, today) {
+  if (move.done || typeof move.due !== 'string') return 0;
+  const t = toISODate(today);
+  if (move.due < t) return 2;
+  if (move.due === t) return 1;
+  return 0;
+}
+
+/** All moves everywhere: goal initiatives plus loose ends. Each with its context. */
+export function allMoves(doc) {
+  const out = [];
+  for (const g of doc.goals) for (const it of g.inits) for (const m of it.moves) {
+    out.push({ goal: g, init: it, move: m });
+  }
+  for (const m of (doc.loose || [])) out.push({ goal: null, init: null, move: m });
+  return out;
+}
+
+export function findMoveById(doc, id) {
+  return allMoves(doc).find(x => x.move.id === id) || null;
+}
+
+/** Open moves eligible for the Today suggestion: the visible (first VISIBLE_OPEN open) moves of every initiative. */
 export function candidateMoves(doc) {
   const out = [];
   for (const g of doc.goals) {
@@ -83,15 +112,75 @@ export function candidateMoves(doc) {
 }
 
 /**
- * Today's Move: candidates ordered by least goal momentum (ties keep document
- * order — stable sort), then `skip` cycles through them.
- * Returns null when nothing is open.
+ * Today suggestion order (v0.2): overdue first, then due-today, then the goal
+ * with the least momentum (lowest ring %). Stable within each band; `skip`
+ * cycles. Returns null when nothing is open.
  */
-export function pickTodaysMove(doc, skip = 0) {
+export function pickTodaysMove(doc, skip = 0, today = null) {
   const cands = candidateMoves(doc);
   if (!cands.length) return null;
-  const sorted = [...cands].sort((a, b) => goalPct(a.goal) - goalPct(b.goal));
+  const t = today || new Date();
+  const sorted = [...cands].sort((a, b) => {
+    const d = dueTier(b.move, t) - dueTier(a.move, t);
+    if (d !== 0) return d;
+    return goalPct(a.goal) - goalPct(b.goal);
+  });
   return sorted[((skip % sorted.length) + sorted.length) % sorted.length];
+}
+
+/** Human explanation for why a suggestion was picked (shown in the UI). */
+export function suggestionReason(picked, today) {
+  const tier = dueTier(picked.move, today);
+  if (tier === 2) return `because it's overdue (was due ${picked.move.due})`;
+  if (tier === 1) return 'because it’s due today';
+  return `because “${picked.goal.name}” has the least momentum right now`;
+}
+
+/** Resolve the Today list to concrete moves; entries pointing at deleted moves are skipped. */
+export function todayItems(doc) {
+  return (doc.today || [])
+    .map(t => {
+      const found = findMoveById(doc, t.moveId);
+      return found ? { entry: t, ...found } : null;
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Day rollover housekeeping (mutates): drop Today entries whose move is done
+ * and was completed before today, and drop entries whose move no longer
+ * exists. Returns true if anything changed.
+ */
+export function pruneToday(doc, today) {
+  if (!Array.isArray(doc.today)) return false;
+  const t = toISODate(today);
+  const before = doc.today.length;
+  doc.today = doc.today.filter(e => {
+    const found = findMoveById(doc, e.moveId);
+    if (!found) return false;
+    if (found.move.done && (found.move.doneAt || '') < t) return false;
+    return true;
+  });
+  return doc.today.length !== before;
+}
+
+/** Due-date notifications pending (plan-§7 discipline: once per move per tier). Pure. */
+export function pendingDueNotifications(doc, today) {
+  const out = [];
+  for (const { init, move } of allMoves(doc)) {
+    const tier = dueTier(move, today);
+    const last = move.lastDueTier || 0;
+    if (tier > last) {
+      out.push({ moveId: move.id, label: move.label, due: move.due, tier, initName: init ? init.name : 'loose ends' });
+    }
+  }
+  return out;
+}
+
+/** Record a fired due notification (never lowers the recorded tier). */
+export function applyDueTier(doc, moveId, tier) {
+  const found = findMoveById(doc, moveId);
+  if (found) found.move.lastDueTier = Math.max(found.move.lastDueTier || 0, tier);
 }
 
 /** Goal horizon with default (plan §4.1). */
@@ -154,7 +243,25 @@ export function validateDoc(doc) {
   const isStr = v => typeof v === 'string';
   const isDate = v => isStr(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
   if (!doc || typeof doc !== 'object') return ['document is not an object'];
+  const checkMove = (m, where) => {
+    if (!isStr(m?.id)) errs.push(`${where} missing id`);
+    if (!isStr(m?.label)) errs.push(`${where} missing label`);
+    if (typeof m?.done !== 'boolean') errs.push(`${where} missing done`);
+    if (m?.doneAt !== undefined && !isDate(m.doneAt)) errs.push(`${where} bad doneAt`);
+    if (m?.due !== undefined && !isDate(m.due)) errs.push(`${where} bad due`);
+  };
   if (!isStr(doc.title)) errs.push('title missing');
+  if (doc.loose !== undefined) {
+    if (!Array.isArray(doc.loose)) errs.push('loose is not an array');
+    else doc.loose.forEach((m, i) => checkMove(m, `loose[${i}]`));
+  }
+  if (doc.today !== undefined) {
+    if (!Array.isArray(doc.today)) errs.push('today is not an array');
+    else doc.today.forEach((t, i) => {
+      if (!isStr(t?.id)) errs.push(`today[${i}] missing id`);
+      if (!isStr(t?.moveId)) errs.push(`today[${i}] missing moveId`);
+    });
+  }
   if (!Array.isArray(doc.goals)) return [...errs, 'goals is not an array'];
   doc.goals.forEach((g, gi) => {
     if (!isStr(g?.id)) errs.push(`goal[${gi}] missing id`);
@@ -165,12 +272,7 @@ export function validateDoc(doc) {
       if (!isStr(it?.id)) errs.push(`goal[${gi}].init[${ii}] missing id`);
       if (!isStr(it?.name)) errs.push(`goal[${gi}].init[${ii}] missing name`);
       if (!Array.isArray(it?.moves)) errs.push(`goal[${gi}].init[${ii}] moves not an array`);
-      else it.moves.forEach((m, mi) => {
-        if (!isStr(m?.id)) errs.push(`goal[${gi}].init[${ii}].move[${mi}] missing id`);
-        if (!isStr(m?.label)) errs.push(`goal[${gi}].init[${ii}].move[${mi}] missing label`);
-        if (typeof m?.done !== 'boolean') errs.push(`goal[${gi}].init[${ii}].move[${mi}] missing done`);
-        if (m?.doneAt !== undefined && !isDate(m.doneAt)) errs.push(`goal[${gi}].init[${ii}].move[${mi}] bad doneAt`);
-      });
+      else it.moves.forEach((m, mi) => checkMove(m, `goal[${gi}].init[${ii}].move[${mi}]`));
       if (!Array.isArray(it?.waiting)) errs.push(`goal[${gi}].init[${ii}] waiting not an array`);
       else it.waiting.forEach((w, wi) => {
         if (!isStr(w?.id)) errs.push(`goal[${gi}].init[${ii}].wait[${wi}] missing id`);
@@ -186,6 +288,8 @@ export function validateDoc(doc) {
 /** Accept the prototype's export format: missing schemaVersion → 1; defaults filled, unknown fields preserved. */
 export function normalizeDoc(doc) {
   if (doc.schemaVersion === undefined) doc.schemaVersion = 1;
+  if (doc.loose === undefined) doc.loose = [];
+  if (doc.today === undefined) doc.today = [];
   for (const g of doc.goals ?? []) {
     if (g && g.sub === undefined) g.sub = '';
     for (const it of g?.inits ?? []) {

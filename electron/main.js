@@ -166,10 +166,18 @@ async function loadOrRecover() {
 let notifyTimer = null;
 
 function fireNotification(p) {
-  const title = p.tier === 2 ? `⚠ ${p.who} — ${p.what}` : `⏳ ${p.who} — ${p.what}`;
-  const body = p.tier === 2
-    ? `Waiting ${p.days} days (${p.initName}). Time to nudge.`
-    : `Has been waiting ${p.days} days (${p.initName}).`;
+  let title, body;
+  if (p.kind === 'due') {
+    title = p.tier === 2 ? `⚑ Overdue: ${p.what}` : `⚑ Due today: ${p.what}`;
+    body = p.tier === 2
+      ? `Slipped ${p.days} day${p.days === 1 ? '' : 's'} past due (${p.initName}).`
+      : `On your map under “${p.initName}.”`;
+  } else {
+    title = p.tier === 2 ? `⚠ ${p.who} — ${p.what}` : `⏳ ${p.who} — ${p.what}`;
+    body = p.tier === 2
+      ? `Waiting ${p.days} days (${p.initName}). Time to nudge.`
+      : `Has been waiting ${p.days} days (${p.initName}).`;
+  }
   if (process.env.TRAILMAP_NOTIFY_FAKE === '1') {
     // Test hook: record instead of showing OS notifications (e2e asserts exactly-once).
     fs.appendFileSync(path.join(dataDir(), 'notifications.log'), JSON.stringify({ ...p, title }) + '\n');
@@ -187,13 +195,27 @@ function fireNotification(p) {
 async function runNotificationCheck() {
   if (!currentDoc) return;
   const L = await logic();
-  const pending = L.pendingWaitingNotifications(currentDoc, new Date());
-  for (const p of pending) {
+  const now = new Date();
+  const waiting = L.pendingWaitingNotifications(currentDoc, now);
+  for (const p of waiting) {
     fireNotification(p);
     L.applyNotifiedTier(currentDoc, p.waitId, p.tier);
   }
-  if (pending.length) {
-    scheduleSave(); // persist lastNotifiedTier so a tier never fires twice
+  // Due-date notifications (v0.2): due-day and overdue, once each.
+  const due = L.pendingDueNotifications(currentDoc, now);
+  for (const p of due) {
+    fireNotification({
+      who: p.tier === 2 ? '⚑ Overdue' : '⚑ Due today',
+      what: p.label,
+      days: p.tier === 2 ? Math.max(1, Math.round((now - new Date(p.due)) / 86400000)) : 0,
+      tier: p.tier,
+      initName: p.initName,
+      kind: 'due',
+    });
+    L.applyDueTier(currentDoc, p.moveId, p.tier);
+  }
+  if (waiting.length || due.length) {
+    scheduleSave(); // persist notified tiers so nothing ever fires twice
     if (win) win.webContents.send('trailmap:external-change', currentDoc);
   }
 }
