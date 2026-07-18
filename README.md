@@ -35,7 +35,21 @@ First launch of an unsigned build: right-click the app → Open.
 ## Manual checklist (per milestone gates)
 
 - [ ] Light and dark mode both render correctly (System Settings → Appearance)
-- [ ] Notification click focuses the app (M3+)
+- [ ] Notification click focuses the app — to test quickly, edit a waiting chip's
+      `since` date in the data file to 6+ days ago and relaunch
 - [ ] Kill-test: force-quit repeatedly during edits; data file always loads
-- [ ] Corrupt-file recovery: mangle the JSON by hand; next launch offers snapshot restore
+      (automated version: `node scripts/kill-test.mjs 30`)
+- [ ] Corrupt-file recovery: mangle the JSON by hand; next launch restores the
+      latest snapshot and sets the bad file aside
+- [ ] External edit: change `trailmap.json` in a text editor while the app runs;
+      the app reloads it (and asks first if you also had unsaved changes)
 - [ ] VoiceOver spot-check: rings and chips announce sensibly
+
+## Architecture notes
+
+- `renderer/` is platform-agnostic by rule (plan §2) — enforced by
+  `npm run check:renderer`. A future web version reuses it unchanged.
+- All persistence goes through `electron/storage/` (StorageProvider contract);
+  swapping in SQLite later touches nothing above that interface.
+- Every tunable (visible-move cap, aging thresholds, 9am check hour, debounce)
+  lives in `CONSTANTS` in `renderer/logic.js`.
