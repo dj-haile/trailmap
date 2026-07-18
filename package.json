@@ -2,7 +2,7 @@
   "name": "trailmap",
   "productName": "Trailmap",
   "version": "0.1.0",
-  "description": "A visual quarterly map of your work \u2014 goal rings, initiatives, people-shaped dependencies, one move at a time.",
+  "description": "A visual quarterly map of your work — goal rings, initiatives, people-shaped dependencies, one move at a time.",
   "main": "electron/main.js",
   "author": "Dj Haile <dj.haile@gmail.com>",
   "license": "UNLICENSED",
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
-    "electron": "^38.2.0",
+    "electron": "^43.1.1",
     "electron-builder": "^26.0.12"
   },
   "build": {
@@ -41,5 +41,8 @@
       "identity": null,
       "icon": "assets/icon.png"
     }
+  },
+  "engines": {
+    "node": ">=20.17.0"
   }
 }
