@@ -30,15 +30,15 @@ npm install
 npm start
 ```
 
-First launch seeds sample data so the map isn't empty — replace it with your real quarter via **✎ Edit the map**, or import your own data (below).
+First launch starts with an **empty map** and a welcome prompt — build it up with **✎ Edit the map** or the quick-add box. Want to see a filled-in example first? **File → Load Sample Data** (your state is snapshotted before it loads).
 
 ### Package as a Mac app
 
 ```bash
-npm run dist            # → dist/Trailmap-<version>-arm64.dmg
+npm run dist            # → dist/Trailmap-<version>-universal.dmg
 ```
 
-Open the .dmg, drag Trailmap to Applications. The build is unsigned: the **first** launch needs right-click → **Open** (macOS remembers after that).
+The .dmg is a **universal build** — one file for both Apple Silicon and Intel Macs — so it can be shared with anyone. Recipients drag Trailmap to Applications; because the build is unsigned, the first launch needs **System Settings → Privacy & Security → Open Anyway** (full recipient instructions and the future code-signing path: `docs/SHARING.md`).
 
 ## Daily use
 
@@ -76,7 +76,7 @@ Every behavioral number lives in one place: `CONSTANTS` in `renderer/logic.js` �
 
 ```bash
 npm test                       # renderer-purity check + 43 unit tests
-xvfb-run -a npm run test:e2e   # 20 Playwright e2e tests (drop xvfb-run on macOS)
+xvfb-run -a npm run test:e2e   # 23 Playwright e2e tests (drop xvfb-run on macOS)
 node scripts/kill-test.mjs 30  # SIGKILL the app mid-save 30×; file must survive
 ```
 

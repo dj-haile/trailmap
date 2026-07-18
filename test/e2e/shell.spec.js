@@ -7,6 +7,11 @@ const os = require('os');
 
 const ROOT = path.join(__dirname, '..', '..');
 
+function seedSample(dataDir) {
+  const sample = fs.readFileSync(path.join(ROOT, 'fixtures', 'sample-quarter.json'), 'utf8');
+  fs.writeFileSync(path.join(dataDir, 'trailmap.json'), sample);
+}
+
 function launchWith(dataDir, extraEnv = {}) {
   return electron.launch({
     args: [ROOT],
@@ -26,6 +31,7 @@ const clickMenu = (app, id) => app.evaluate(({ Menu }, itemId) => {
 
 test('export writes a file matching the live document', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-shell-'));
+  seedSample(dataDir);
   const exportPath = path.join(dataDir, 'exported.json');
   const app = await launchWith(dataDir, { TRAILMAP_TEST_EXPORT_PATH: exportPath });
   const page = await app.firstWindow();
@@ -41,6 +47,7 @@ test('export writes a file matching the live document', async () => {
 
 test('import accepts prototype-format data and snapshots the current state first', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-shell-'));
+  seedSample(dataDir);
   const importPath = path.join(dataDir, 'incoming.json');
   // prototype export format: no schemaVersion, no lastNotifiedTier
   fs.writeFileSync(importPath, JSON.stringify({
@@ -62,6 +69,7 @@ test('import accepts prototype-format data and snapshots the current state first
 
 test('snapshot-now and restore round-trip through the menu', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-shell-'));
+  seedSample(dataDir);
   let app = await launchWith(dataDir);
   let page = await app.firstWindow();
   await page.waitForSelector('.goal');
@@ -89,6 +97,7 @@ test('snapshot-now and restore round-trip through the menu', async () => {
 
 test('window size and position survive relaunch', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-shell-'));
+  seedSample(dataDir);
   let app = await launchWith(dataDir);
   let page = await app.firstWindow();
   await page.waitForSelector('.goal');

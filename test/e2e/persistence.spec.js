@@ -6,6 +6,11 @@ const os = require('os');
 
 const ROOT = path.join(__dirname, '..', '..');
 
+function seedSample(dataDir) {
+  const sample = fs.readFileSync(path.join(ROOT, 'fixtures', 'sample-quarter.json'), 'utf8');
+  fs.writeFileSync(path.join(dataDir, 'trailmap.json'), sample);
+}
+
 function launchWith(dataDir) {
   return electron.launch({
     args: [ROOT],
@@ -15,8 +20,9 @@ function launchWith(dataDir) {
 
 test('edits survive quit and relaunch', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-e2e-'));
+  seedSample(dataDir);
 
-  // session 1: first run seeds sample; complete the first open move
+  // session 1: complete the first open move
   let app = await launchWith(dataDir);
   let page = await app.firstWindow();
   await page.waitForSelector('.goal');
@@ -43,6 +49,7 @@ test('edits survive quit and relaunch', async () => {
 
 test('external edits to the data file appear in the running app', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-e2e-'));
+  seedSample(dataDir);
   const app = await launchWith(dataDir);
   const page = await app.firstWindow();
   await page.waitForSelector('.goal');
@@ -62,8 +69,9 @@ test('external edits to the data file appear in the running app', async () => {
 
 test('a corrupted live file recovers from the latest snapshot on launch', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-e2e-'));
+  seedSample(dataDir);
 
-  // session 1: seed + one real edit so a good snapshot exists
+  // session 1: one real edit so a good snapshot exists
   let app = await launchWith(dataDir);
   let page = await app.firstWindow();
   await page.waitForSelector('.goal');

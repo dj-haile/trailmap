@@ -10,6 +10,8 @@ test.beforeAll(async () => {
   // Fresh data dir per run: the app persists now, and parity assertions assume
   // pristine sample data. Fake notifications so launch checks can't interfere.
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-parity-'));
+  fs.writeFileSync(path.join(dataDir, 'trailmap.json'),
+    fs.readFileSync(path.join(__dirname, '..', '..', 'fixtures', 'sample-quarter.json'), 'utf8'));
   app = await electron.launch({
     args: [path.join(__dirname, '..', '..')],
     env: { ...process.env, TRAILMAP_DATA_DIR: dataDir, TRAILMAP_SILENT_DIALOGS: '1', TRAILMAP_NOTIFY_FAKE: '1' },

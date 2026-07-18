@@ -88,6 +88,14 @@ h1 { font-size: 21px; font-weight: 650; margin: 0; }
   background: transparent; color: var(--ink); outline: none;
 }
 .quickadd input:focus { border-style: solid; border-color: var(--c1); }
+.welcome { padding: 8px 4px 4px; }
+.welcome-title { font-size: 15.5px; font-weight: 650; }
+.welcome-body { font-size: 13px; color: var(--ink-2); margin: 6px 0 12px; line-height: 1.5; max-width: 560px; }
+.welcome-cta {
+  font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px;
+  background: var(--ink); color: var(--surface-1); border: 1px solid var(--ink); cursor: pointer;
+  margin-bottom: 10px;
+}
 .suggestion {
   display: flex; align-items: center; gap: 14px;
   margin-top: 8px; padding-top: 10px; border-top: 1px dashed var(--grid);

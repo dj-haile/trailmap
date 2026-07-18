@@ -16,6 +16,8 @@ function launchWith(dataDir) {
 
 test('today workbench: quick-add, pin via context menu, complete, unpin, persist', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trailmap-today-'));
+  fs.writeFileSync(path.join(dataDir, 'trailmap.json'),
+    fs.readFileSync(path.join(ROOT, 'fixtures', 'sample-quarter.json'), 'utf8'));
   let app = await launchWith(dataDir);
   let page = await app.firstWindow();
   await page.waitForSelector('.goal');

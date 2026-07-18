@@ -224,6 +224,30 @@ function renderHero(today) {
   hero.classList.remove('alldone');
   hero.replaceChildren();
 
+  // Welcome state: a brand-new empty map (no goals, nothing captured yet)
+  if (!S.goals.length && !(S.today || []).length && !(S.loose || []).some(m => !m.done)) {
+    const wrap = document.createElement('div'); wrap.className = 'welcome';
+    const h = document.createElement('div'); h.className = 'welcome-title';
+    h.textContent = '🗺 Your map is empty — plant the first flag';
+    const p = document.createElement('div'); p.className = 'welcome-body';
+    p.textContent = 'Add a quarterly priority, then initiatives under it, then the next moves. Or quick-add a to-do below to just get moving. (File → Load Sample Data shows a filled-in example.)';
+    const b = document.createElement('button'); b.className = 'welcome-cta';
+    b.textContent = '＋ Add your first priority';
+    b.onclick = () => { editMode = true; openForm = { type: 'goal' }; render(); };
+    const qa = document.createElement('div'); qa.className = 'quickadd';
+    const input = document.createElement('input');
+    input.id = 'quickadd';
+    input.placeholder = 'Add a to-do for today…';
+    input.setAttribute('aria-label', 'Add a to-do for today');
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && input.value.trim()) quickAddToday(input.value.trim());
+    });
+    qa.appendChild(input);
+    wrap.append(h, p, b, qa);
+    hero.appendChild(wrap);
+    return;
+  }
+
   const head = document.createElement('div'); head.className = 'today-head';
   const lbl = document.createElement('div'); lbl.className = 'lbl';
   lbl.textContent = '☀️ Today — before the meetings eat you';

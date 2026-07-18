@@ -39,7 +39,33 @@ function notify(opts) {
 }
 
 function seedPath() {
+  // First run starts EMPTY (owner decision) — the sample is a menu item away.
+  return path.join(__dirname, '..', 'fixtures', 'empty-quarter.json');
+}
+
+function samplePath() {
   return path.join(__dirname, '..', 'fixtures', 'sample-quarter.json');
+}
+
+async function loadSampleData() {
+  const choice = SILENT ? 0 : dialog.showMessageBoxSync(win, {
+    type: 'question',
+    message: 'Load the sample quarter?',
+    detail: 'Your current map will be snapshotted first, then replaced with the demo data.',
+    buttons: ['Load Sample', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (choice !== 0) return;
+  const raw = fs.readFileSync(samplePath(), 'utf8');
+  const { doc } = await provider.parseExternal(raw);
+  if (!doc) return;
+  const prev = provider.lastSavedContent();
+  if (prev != null) provider.snapshotContent(prev, 'pre-sample');
+  clearTimeout(saveTimer); dirty = false;
+  currentDoc = doc;
+  await provider.forceSave(doc);
+  if (win) win.webContents.send('trailmap:external-change', doc);
 }
 
 // ---------- saving ----------
@@ -368,6 +394,7 @@ function buildMenu() {
         { id: 'snapshot-now', label: 'Snapshot Now', click: () => provider.snapshotNow() },
         { id: 'restore-snapshot', label: 'Restore Snapshot…', click: () => restoreSnapshotFlow() },
         { type: 'separator' },
+        { id: 'load-sample', label: 'Load Sample Data…', click: () => loadSampleData() },
         { id: 'open-data', label: 'Open Data Folder', click: () => shell.openPath(dataDir()) },
         ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit' }]),
       ],
