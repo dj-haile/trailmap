@@ -98,6 +98,16 @@ export function findMoveById(doc, id) {
   return allMoves(doc).find(x => x.move.id === id) || null;
 }
 
+/** Rename a move (label is trimmed). Returns false, changing nothing, for an empty label or unknown id. */
+export function setMoveLabel(doc, moveId, label) {
+  const next = typeof label === 'string' ? label.trim() : '';
+  if (!next) return false;
+  const found = findMoveById(doc, moveId);
+  if (!found) return false;
+  found.move.label = next;
+  return true;
+}
+
 /** Open moves eligible for the Today suggestion: the visible (first VISIBLE_OPEN open) moves of every initiative. */
 export function candidateMoves(doc) {
   const out = [];

@@ -3,7 +3,7 @@
 import {
   CONSTANTS, ageDays, ageClass, initPct, goalPct, momentumCounts,
   pickTodaysMove, goalHorizon, nextHorizon, newId, quarterLabel,
-  dueTier, toISODate, findMoveById, todayItems, pruneToday, suggestionReason,
+  dueTier, toISODate, findMoveById, todayItems, pruneToday, suggestionReason, setMoveLabel,
 } from './logic.js';
 
 const COLORS = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8'];
@@ -56,6 +56,22 @@ function deleteMove(id) {
     S.loose = (S.loose || []).filter(m => m.id !== id);
     S.today = (S.today || []).filter(t => t.moveId !== id);
   });
+}
+function renameMove(moveId, labelEl) {
+  const f = findMove(moveId);
+  if (!f || !labelEl) return;
+  renameInline(labelEl, f.m.label, v => setMoveLabel(S, moveId, v));
+}
+// Edit-mode affordances for a move row: a ✎ control, and the label text itself.
+function editButton(m, span) {
+  const b = document.createElement('button'); b.className = 'rowdel rowedit'; b.textContent = '✎';
+  b.title = 'Edit label'; b.setAttribute('aria-label', `Edit: ${m.label}`);
+  b.onclick = () => renameMove(m.id, span);
+  return b;
+}
+function editableLabel(m, span) {
+  span.classList.add('editable');
+  span.onclick = () => renameMove(m.id, span);
 }
 
 // ---------- Today workbench (v0.2) ----------
@@ -263,7 +279,7 @@ function renderHero(today) {
     if (move.done) { chk.style.background = goalColor(goal); chk.classList.add('checked'); }
     else { chk.title = 'Done'; chk.setAttribute('aria-label', `Complete: ${move.label}`); chk.onclick = () => completeMove(move.id); }
     const mid = document.createElement('div'); mid.className = 'ti-mid';
-    const lab = document.createElement('span'); lab.className = 'ti-label'; lab.textContent = move.label;
+    const lab = document.createElement('span'); lab.className = 'ti-label mlabel'; lab.textContent = move.label;
     const src = document.createElement('span'); src.className = 'ti-src';
     src.textContent = init ? init.name : 'loose end';
     const dot = document.createElement('span'); dot.className = 'ti-dot'; dot.style.background = goalColor(goal);
@@ -344,9 +360,10 @@ function renderLoose(today) {
     const chk = document.createElement('button'); chk.className = 'chk'; chk.textContent = '✓';
     chk.title = 'Done'; chk.setAttribute('aria-label', `Complete: ${m.label}`);
     chk.onclick = () => completeMove(m.id);
-    const span = document.createElement('span'); span.textContent = m.label;
+    const span = document.createElement('span'); span.className = 'mlabel'; span.textContent = m.label;
     row.append(chk, span);
     const d = dueChip(m, today); if (d) row.appendChild(d);
+    if (editMode) { editableLabel(m, span); row.appendChild(editButton(m, span)); }
     row.addEventListener('contextmenu', e => openContextMenu(e, m.id));
     card.appendChild(row);
   }
@@ -378,6 +395,8 @@ function openContextMenu(e, moveId) {
     };
     menu.appendChild(b);
   };
+  const labelEl = e.currentTarget?.querySelector?.('.mlabel');
+  if (labelEl) add('✎ Edit label…', () => renameMove(moveId, labelEl));
   if (!f.m.done) {
     if (isPinned(moveId)) add('✕ Remove from Today', () => removeFromToday(moveId));
     else add('☀ Add to Today', () => addToToday(moveId));
@@ -536,8 +555,9 @@ function renderInit(g, it, c, today) {
     chk.title = editMode ? 'Un-complete' : 'Done';
     chk.setAttribute('aria-label', `${m.label} — completed${editMode ? '; activate to un-complete' : ''}`);
     if (editMode) chk.onclick = () => uncompleteMove(m.id);
-    const span = document.createElement('span'); span.textContent = m.label;
+    const span = document.createElement('span'); span.className = 'mlabel'; span.textContent = m.label;
     row.append(chk, span);
+    if (editMode) { editableLabel(m, span); row.appendChild(editButton(m, span)); }
     card.appendChild(row);
   }
   if (hiddenDone > 0) {
@@ -556,7 +576,7 @@ function renderInit(g, it, c, today) {
     const chk = document.createElement('button'); chk.className = 'chk'; chk.textContent = '✓';
     chk.title = 'Done'; chk.setAttribute('aria-label', `Complete: ${m.label}`);
     chk.onclick = () => completeMove(m.id);
-    const span = document.createElement('span'); span.textContent = m.label;
+    const span = document.createElement('span'); span.className = 'mlabel'; span.textContent = m.label;
     row.append(chk, span);
     const dch = dueChip(m, today); if (dch) row.appendChild(dch);
     if (isPinned(m.id)) {
@@ -566,6 +586,8 @@ function renderInit(g, it, c, today) {
     }
     row.addEventListener('contextmenu', e => openContextMenu(e, m.id));
     if (editMode) {
+      editableLabel(m, span);
+      row.appendChild(editButton(m, span)); // first control: .rowdel's margin-left:auto pushes the group right
       const bump = document.createElement('button'); bump.className = 'rowdel'; bump.textContent = '↑';
       bump.title = 'Move to top'; bump.setAttribute('aria-label', `Move to top: ${m.label}`);
       bump.onclick = () => bumpMove(m.id);
