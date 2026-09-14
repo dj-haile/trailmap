@@ -5,6 +5,7 @@ import {
   quarterStartISO, pickTodaysMove, candidateMoves, goalHorizon, nextHorizon,
   validateDoc, normalizeDoc,
 } from '../../renderer/logic.js';
+import * as L from '../../renderer/logic.js';
 
 const D = iso => new Date(iso + 'T12:00:00');
 
@@ -125,4 +126,18 @@ test('unknown fields survive validate + normalize round-trip (forward compat, pl
   assert.deepEqual(round.futureField, { nested: true });
   assert.equal(round.goals[0].futureGoalField, 42);
   assert.equal(round.goals[0].inits[0].moves[0].futureMoveField, 'x');
+});
+
+// ---------- move label editing ----------
+test('setMoveLabel renames initiative and loose moves; trims; rejects empty and unknown ids', () => {
+  const d = doc([goal('g', [mv('m1', false)])]);
+  d.loose = [mv('l1', false)];
+  assert.equal(L.setMoveLabel(d, 'm1', 'Renamed move'), true);
+  assert.equal(d.goals[0].inits[0].moves[0].label, 'Renamed move');
+  assert.equal(L.setMoveLabel(d, 'l1', '  Loose renamed  '), true, 'loose ends are reachable');
+  assert.equal(d.loose[0].label, 'Loose renamed', 'label is trimmed');
+  assert.equal(L.setMoveLabel(d, 'm1', ''), false);
+  assert.equal(L.setMoveLabel(d, 'm1', '   '), false);
+  assert.equal(d.goals[0].inits[0].moves[0].label, 'Renamed move', 'empty input leaves the label alone');
+  assert.equal(L.setMoveLabel(d, 'nope', 'x'), false, 'unknown id changes nothing');
 });

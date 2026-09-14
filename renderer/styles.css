@@ -209,6 +209,8 @@ button.horizon-tag:hover { border-color: var(--baseline); color: var(--ink-2); }
 }
 .rowdel + .rowdel { margin-left: 0; }
 .rowdel:hover { color: var(--crit); }
+.rowdel.rowedit:hover { color: var(--ink); }
+.mlabel.editable { cursor: text; }
 .inline-form { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
 .inline-form input {
   font-size: 12.5px; padding: 5px 9px; border: 1px solid var(--baseline);

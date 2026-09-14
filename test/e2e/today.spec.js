@@ -7,6 +7,13 @@ const os = require('os');
 
 const ROOT = path.join(__dirname, '..', '..');
 
+// Local calendar date, matching renderer/logic.js's toISODate (app due-tier logic
+// is local-date-based, so seeded/typed dates must be derived the same way —
+// not via toISOString(), which is UTC and drifts a day after ~20:00 US-Eastern).
+function localISODate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function launchWith(dataDir) {
   return electron.launch({
     args: [ROOT],
@@ -69,7 +76,7 @@ test('due dates: set via context menu, chip renders, suggestion prioritizes over
   // seed with an overdue move injected into the sample
   const sample = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'sample-quarter.json'), 'utf8'));
   const past = new Date(); past.setDate(past.getDate() - 3);
-  const pastISO = past.toISOString().slice(0, 10);
+  const pastISO = localISODate(past);
   sample.goals[2].inits[0].moves.push({ id: 'm_due', label: 'Overdue thing', done: false, due: pastISO });
   fs.writeFileSync(path.join(dataDir, 'trailmap.json'), JSON.stringify(sample, null, 1));
 
@@ -86,7 +93,7 @@ test('due dates: set via context menu, chip renders, suggestion prioritizes over
   const row = page.locator('.move-row:not(.done)').first();
   await row.click({ button: 'right' });
   await page.locator('#ctx-menu button', { hasText: 'Set due date' }).click();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localISODate();
   await page.locator('#ctx-menu input[type="date"]').fill(today);
   await page.locator('#ctx-menu button', { hasText: 'Set due date' }).click();
   await expect(page.locator('.due-chip.duetoday').first()).toContainText('due today');
