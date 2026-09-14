@@ -23,7 +23,8 @@ const WATCH_INTERVAL_MS = 800;
 let win = null;
 let provider = null;
 let currentDoc = null;
-let dirty = false;
+let dirty = false;     // a save is pending (user edit OR main's own bookkeeping)
+let userDirty = false; // the pending save carries USER edits — only those earn a conflict prompt
 let saveTimer = null;
 let watching = false;
 
@@ -62,26 +63,45 @@ async function loadSampleData() {
   if (!doc) return;
   const prev = provider.lastSavedContent();
   if (prev != null) provider.snapshotContent(prev, 'pre-sample');
-  clearTimeout(saveTimer); dirty = false;
+  clearPendingSave();
   currentDoc = doc;
+  await reapplyFiredTiers(doc); // never re-fire a notification this session already showed
   await provider.forceSave(doc);
   if (win) win.webContents.send('trailmap:external-change', doc);
 }
 
 // ---------- saving ----------
-function scheduleSave() {
+/**
+ * @param {{user?: boolean}} [opts] `user: true` for edits the renderer sent
+ *   (work that could be lost); omitted for main's own bookkeeping (notification
+ *   tiers), which is re-derived on whatever doc we end up with and so must never
+ *   raise the "which side wins" prompt against an external edit (plan §10).
+ */
+function scheduleSave({ user = false } = {}) {
   dirty = true;
+  if (user) userDirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(doSave, SAVE_DEBOUNCE_MS);
 }
 
+function clearPendingSave() {
+  clearTimeout(saveTimer);
+  dirty = false;
+  userDirty = false;
+}
+
 async function doSave() {
   if (!dirty || !currentDoc) return;
-  dirty = false;
+  const hadUserEdits = userDirty;
+  dirty = false; userDirty = false;
   try {
     await provider.save(currentDoc);
   } catch (err) {
-    if (err.code === 'CONFLICT') { dirty = true; await resolveConflict(err.raw); return; }
+    if (err.code === 'CONFLICT') {
+      dirty = true; userDirty = hadUserEdits;
+      await resolveConflict(err.raw);
+      return;
+    }
     // Disk misbehavior (plan §10): old file is intact (atomic write), app keeps
     // running, user sees a non-fatal notice. Don't re-arm a retry loop.
     notify({
@@ -96,7 +116,7 @@ async function doSave() {
 function flushSync() {
   clearTimeout(saveTimer);
   if (dirty && currentDoc && provider) {
-    try { provider.saveSync(currentDoc); dirty = false; }
+    try { provider.saveSync(currentDoc); dirty = false; userDirty = false; }
     catch (err) {
       if (err.code === 'CONFLICT') {
         // External edit arrived while quitting: leave the disk as-is, preserve
@@ -128,9 +148,11 @@ async function resolveConflict(raw) {
   const { doc } = await provider.parseExternal(raw);
   if (!doc) return; // partial/invalid external write — the next poll retries
 
-  if (dirty) {
-    // Unsaved in-app changes AND an external edit. Snapshot both, ask which
-    // side wins (plan §10 — never silently clobber).
+  if (userDirty) {
+    // Unsaved USER edits AND an external edit. Snapshot both, ask which side
+    // wins (plan §10 — never silently clobber). A pending save that only
+    // carries main's notification bookkeeping does not count: nothing the
+    // user did is at stake, and the tiers are re-recorded below.
     provider.snapshotContent(raw, 'external');
     provider.snapshotContent(JSON.stringify(currentDoc, null, 1), 'app');
     const choice = SILENT ? 0 : dialog.showMessageBoxSync(win, {
@@ -142,15 +164,19 @@ async function resolveConflict(raw) {
       cancelId: 0,
     });
     if (choice === 1) {
-      clearTimeout(saveTimer); dirty = false;
+      clearPendingSave();
       provider.adoptExternal(raw);
-      try { await provider.forceSave(currentDoc); } catch { dirty = true; }
+      try { await provider.forceSave(currentDoc); } catch { dirty = true; userDirty = true; }
       return;
     }
-    clearTimeout(saveTimer); dirty = false;
   }
+  // The external doc wins. Any bookkeeping-only save still pending is
+  // superseded; the tiers fired this session are re-recorded on the new doc
+  // (it may come from a copy that predates our write) so nothing fires twice.
+  clearPendingSave();
   currentDoc = doc;
   provider.adoptExternal(raw); // don't re-trigger on our own knowledge of it
+  if (await reapplyFiredTiers(doc)) scheduleSave();
   if (win) win.webContents.send('trailmap:external-change', doc);
 }
 
@@ -191,6 +217,43 @@ async function loadOrRecover() {
 // ---------- aging-chip notifications (plan §7) ----------
 let notifyTimer = null;
 
+// Tiers fired in THIS session, keyed 'w:<waitId>' / 'm:<moveId>'. The doc on
+// disk records them too (lastNotifiedTier / lastDueTier), but currentDoc can be
+// replaced by a copy that predates that write: an external edit saved from an
+// editor buffer opened before launch, a renderer persist racing the debounced
+// tier save, a restored snapshot. Re-recording the fired tiers on whatever doc
+// we adopt keeps "one notification per chip per tier, ever" (plan §7) true.
+const firedTiers = new Map();
+
+function rememberFired(key, tier) {
+  firedTiers.set(key, Math.max(tier, firedTiers.get(key) || 0));
+}
+
+/** Re-record this session's fired tiers on `doc`. Returns true if anything changed. */
+async function reapplyFiredTiers(doc) {
+  if (!firedTiers.size || !doc) return false;
+  const L = await logic();
+  let changed = false;
+  for (const [key, tier] of firedTiers) {
+    const id = key.slice(2);
+    if (key.startsWith('w:')) {
+      const w = findWait(doc, id);
+      if (w && (w.lastNotifiedTier || 0) < tier) { L.applyNotifiedTier(doc, id, tier); changed = true; }
+    } else {
+      const found = L.findMoveById(doc, id);
+      if (found && (found.move.lastDueTier || 0) < tier) { L.applyDueTier(doc, id, tier); changed = true; }
+    }
+  }
+  return changed;
+}
+
+function findWait(doc, waitId) {
+  for (const g of doc.goals) for (const it of g.inits) for (const w of it.waiting) {
+    if (w.id === waitId) return w;
+  }
+  return null;
+}
+
 function fireNotification(p) {
   let title, body;
   if (p.kind === 'due') {
@@ -226,6 +289,7 @@ async function runNotificationCheck() {
   for (const p of waiting) {
     fireNotification(p);
     L.applyNotifiedTier(currentDoc, p.waitId, p.tier);
+    rememberFired('w:' + p.waitId, p.tier);
   }
   // Due-date notifications (v0.2): due-day and overdue, once each.
   const due = L.pendingDueNotifications(currentDoc, now);
@@ -239,6 +303,7 @@ async function runNotificationCheck() {
       kind: 'due',
     });
     L.applyDueTier(currentDoc, p.moveId, p.tier);
+    rememberFired('m:' + p.moveId, p.tier);
   }
   if (waiting.length || due.length) {
     scheduleSave(); // persist notified tiers so nothing ever fires twice
@@ -344,8 +409,9 @@ async function importData() {
   // Snapshot the current state BEFORE replacing it (plan §8).
   const prev = provider.lastSavedContent();
   if (prev != null) provider.snapshotContent(prev, 'pre-import');
-  clearTimeout(saveTimer); dirty = false;
+  clearPendingSave();
   currentDoc = doc;
+  await reapplyFiredTiers(doc); // never re-fire a notification this session already showed
   await provider.forceSave(doc);
   if (win) win.webContents.send('trailmap:external-change', doc);
 }
@@ -374,8 +440,9 @@ async function doRestoreSnapshot(id) {
   const doc = await provider.loadSnapshot(id);
   const prev = provider.lastSavedContent();
   if (prev != null) provider.snapshotContent(prev, 'pre-restore');
-  clearTimeout(saveTimer); dirty = false;
+  clearPendingSave();
   currentDoc = doc;
+  await reapplyFiredTiers(doc); // never re-fire a notification this session already showed
   await provider.forceSave(doc);
   if (win) win.webContents.send('trailmap:external-change', doc);
   return { ok: true };
@@ -418,7 +485,8 @@ ipcMain.handle('trailmap:load', async () => {
 
 ipcMain.handle('trailmap:persist', async (_e, doc) => {
   currentDoc = doc;
-  scheduleSave();
+  scheduleSave({ user: true });
+  await reapplyFiredTiers(doc); // the renderer's copy may predate this session's tier bookkeeping
   return { ok: true };
 });
 
