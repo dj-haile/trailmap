@@ -1,7 +1,7 @@
 // Trailmap — Electron main process.
 // M2: real persistence. Single-writer rule (plan §5): ONLY this process touches
 // the disk, via the StorageProvider. The renderer sends state over IPC.
-const { app, BrowserWindow, ipcMain, dialog, Notification, powerMonitor, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Notification, powerMonitor, Menu, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -430,7 +430,17 @@ ipcMain.handle('trailmap:import', async () => { await importData(); return { ok:
 ipcMain.handle('trailmap:open-data-folder', async () => { shell.openPath(dataDir()); return { ok: true }; });
 
 // ---------- lifecycle ----------
+// Dock icon for unpackaged runs (`npm start`, e2e). The packaged .app gets its
+// icon from the bundle (electron-builder mac.icon); a dev run otherwise shows
+// Electron's default icon.
+function setDevDockIcon() {
+  if (process.platform !== 'darwin' || app.isPackaged || !app.dock) return;
+  const img = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icon.png'));
+  if (!img.isEmpty()) app.dock.setIcon(img);
+}
+
 app.whenReady().then(() => {
+  setDevDockIcon();
   provider = createProvider(dataDir(), { seedPath: seedPath() });
   buildMenu();
   createWindow();
