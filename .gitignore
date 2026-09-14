@@ -5,3 +5,11 @@ out/
 .DS_Store
 test-results/
 playwright-report/
+
+# project-specs framework (local tooling)
+.claude/
+.project-specs.json
+specs.config.yaml
+standards/
+thoughts/
+pr_description.md
