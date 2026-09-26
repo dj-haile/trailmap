@@ -108,6 +108,22 @@ export function setMoveLabel(doc, moveId, label) {
   return true;
 }
 
+/**
+ * Merge priority `fromId` into `intoId`: its initiatives (moves and waiting
+ * chips intact) are appended to the target in order, and the source goal is
+ * removed. The target keeps its own name, tagline, and horizon. Returns false,
+ * changing nothing, when the ids are equal or either is unknown.
+ */
+export function mergeGoals(doc, fromId, intoId) {
+  if (fromId === intoId) return false;
+  const fromIdx = doc.goals.findIndex(g => g.id === fromId);
+  const into = doc.goals.find(g => g.id === intoId);
+  if (fromIdx < 0 || !into) return false;
+  into.inits.push(...doc.goals[fromIdx].inits);
+  doc.goals.splice(fromIdx, 1);
+  return true;
+}
+
 /** Open moves eligible for the Today suggestion: the visible (first VISIBLE_OPEN open) moves of every initiative. */
 export function candidateMoves(doc) {
   const out = [];

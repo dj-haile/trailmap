@@ -3,7 +3,7 @@
 import {
   CONSTANTS, ageDays, ageClass, initPct, goalPct, momentumCounts,
   pickTodaysMove, goalHorizon, nextHorizon, newId, quarterLabel,
-  dueTier, toISODate, findMoveById, todayItems, pruneToday, suggestionReason, setMoveLabel,
+  dueTier, toISODate, findMoveById, todayItems, pruneToday, suggestionReason, setMoveLabel, mergeGoals,
 } from './logic.js';
 
 const COLORS = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8'];
@@ -446,6 +446,39 @@ function promptDue(moveId, current) {
   });
 }
 
+// Edit mode: fold priority `g` into another one. Same popup as the move menu.
+function openMergePicker(g, anchorEl) {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.id = 'ctx-menu';
+  menu.setAttribute('role', 'menu');
+  menu.addEventListener('click', e => e.stopPropagation());
+  const note = document.createElement('div'); note.className = 'ctx-note';
+  note.textContent = 'Its initiatives move to the bottom of the priority you pick. This priority’s tagline and horizon are dropped.';
+  menu.appendChild(note);
+  for (const t of S.goals) {
+    if (t.id === g.id) continue;
+    const b = document.createElement('button');
+    b.setAttribute('role', 'menuitem'); b.className = 'ctx-file';
+    b.textContent = `→ merge into: ${t.name}`;
+    b.onclick = () => { closeContextMenu(); mutate(() => mergeGoals(S, g.id, t.id)); };
+    menu.appendChild(b);
+  }
+  document.body.appendChild(menu);
+  const a = anchorEl.getBoundingClientRect();
+  const { innerWidth: W, innerHeight: H } = window;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(a.left, W - r.width - 8)) + 'px';
+  menu.style.top = Math.min(a.bottom + 4, H - r.height - 8) + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', closeContextMenu, { once: true });
+    document.addEventListener('keydown', function esc(ev) {
+      if (ev.key === 'Escape') { closeContextMenu(); document.removeEventListener('keydown', esc); }
+    });
+  }, 0);
+  menu.querySelector('button')?.focus();
+}
+
 function renderGoals(today) {
   const root = $('goals');
   root.replaceChildren();
@@ -499,7 +532,14 @@ function renderGoal(g, today) {
     ren.onclick = () => renameInline(gname, g.name, v => { g.name = v; });
     const del = document.createElement('button'); del.textContent = 'delete'; del.className = 'del';
     del.onclick = () => deleteGoal(g.id);
-    ge.append(addInit, ren, del);
+    ge.append(addInit, ren);
+    if (S.goals.length > 1) {
+      const merge = document.createElement('button'); merge.textContent = 'merge into…';
+      merge.setAttribute('aria-label', `Merge priority: ${g.name}`);
+      merge.onclick = (ev) => { ev.stopPropagation(); openMergePicker(g, merge); };
+      ge.appendChild(merge);
+    }
+    ge.appendChild(del);
     left.appendChild(ge);
   }
 

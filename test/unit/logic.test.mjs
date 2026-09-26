@@ -141,3 +141,24 @@ test('setMoveLabel renames initiative and loose moves; trims; rejects empty and 
   assert.equal(d.goals[0].inits[0].moves[0].label, 'Renamed move', 'empty input leaves the label alone');
   assert.equal(L.setMoveLabel(d, 'nope', 'x'), false, 'unknown id changes nothing');
 });
+
+// ---------- merging priorities ----------
+test('mergeGoals appends initiatives to the target, removes the source, keeps Today refs, and rejects self or unknown ids', () => {
+  const a = goal('a', [mv('a1', false)]);
+  const b = goal('b', [mv('b1', false)]);
+  b.inits.push({ id: 'b_i2', name: 'b_i2', moves: [mv('b2', false)], waiting: [] });
+  const d = doc([a, b]);
+  d.today = [{ id: 't1', moveId: 'b2', addedOn: '2026-09-20' }];
+
+  assert.equal(L.mergeGoals(d, 'b', 'b'), false, 'self-merge is refused');
+  assert.equal(L.mergeGoals(d, 'nope', 'a'), false, 'unknown source is refused');
+  assert.equal(L.mergeGoals(d, 'b', 'nope'), false, 'unknown target is refused');
+  assert.equal(d.goals.length, 2, 'refusals change nothing');
+
+  assert.equal(L.mergeGoals(d, 'b', 'a'), true);
+  assert.equal(d.goals.length, 1);
+  assert.equal(d.goals[0].id, 'a');
+  assert.deepEqual(d.goals[0].inits.map(i => i.id), ['a_i', 'b_i', 'b_i2'], 'target inits first, then source in order');
+  assert.equal(L.todayItems(d).length, 1, 'Today entry for a moved move still resolves');
+  assert.equal(L.todayItems(d)[0].goal.id, 'a');
+});
