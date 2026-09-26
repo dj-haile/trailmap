@@ -82,7 +82,7 @@ test('edit mode: full CRUD — goal, initiative, move, waiting, rename, bump, de
   await expect(newGoal.locator('.iname')).toHaveText('Golden-path CLI');
 
   // add a move
-  await newGoal.locator('button', { hasText: '＋ move' }).click();
+  await newGoal.locator('button', { hasText: '＋ add' }).click();
   await page.locator('.inline-form [data-f="1"]').fill('Draft CLI spec');
   await page.locator('.inline-form [data-f="1"]').press('Enter');
   await expect(newGoal.locator('.move-row')).toHaveCount(1);
@@ -105,7 +105,7 @@ test('edit mode: full CRUD — goal, initiative, move, waiting, rename, bump, de
   await expect(newGoal.locator('button.horizon-tag')).toHaveText('half');
 
   // add a second move then bump it to top
-  await newGoal.locator('button', { hasText: '＋ move' }).click();
+  await newGoal.locator('button', { hasText: '＋ add' }).click();
   await page.locator('.inline-form [data-f="1"]').fill('Second move');
   await page.locator('.inline-form [data-f="1"]').press('Enter');
   await newGoal.locator('.move-row').nth(1).locator('button[aria-label^="Move to top"]').click();

@@ -681,7 +681,7 @@ function renderInit(g, it, c, today) {
       const b = document.createElement('button'); b.textContent = txt; if (cls) b.className = cls; b.onclick = fn; return b;
     };
     eb.append(
-      mk('＋ move', () => { openForm = { type: 'move', id: it.id }; render(); }),
+      mk('＋ add', () => { openForm = { type: 'move', id: it.id }; render(); }),
       mk('＋ waiting on', () => { openForm = { type: 'wait', id: it.id }; render(); }),
       mk('rename', () => renameInline(iname, it.name, v => { it.name = v; })),
       mk('delete initiative', () => deleteInit(it.id), 'del'),
