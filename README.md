@@ -21,10 +21,16 @@ Trailmap is a macOS desktop app for people whose work fans out through other peo
 
 ## Install & run
 
+### Install the app (no developer tools)
+
+Download the latest `Trailmap-<version>-universal.dmg` from the [Releases page](https://github.com/dj-haile/trailmap/releases), open it, and drag **Trailmap** into **Applications**. The build is unsigned, so the first launch is refused by macOS: open **System Settings → Privacy & Security**, scroll to the security section, and click **Open Anyway**. macOS remembers after that. Full recipient notes, including the "damaged" quarantine fix, are in `docs/SHARING.md`.
+
+### Run from source
+
 Requires **Node.js ≥ 20.17** (LTS recommended — the install fails fast with a clear message on older Node).
 
 ```bash
-git clone <this repo>   # or you already have it
+git clone https://github.com/dj-haile/trailmap.git
 cd trailmap
 npm install
 npm start
@@ -75,10 +81,12 @@ Every behavioral number lives in one place: `CONSTANTS` in `renderer/logic.js` �
 ## Development
 
 ```bash
-npm test                       # renderer-purity check + 43 unit tests
-xvfb-run -a npm run test:e2e   # 23 Playwright e2e tests (drop xvfb-run on macOS)
+npm test                       # renderer-purity check + 48 unit tests
+xvfb-run -a npm run test:e2e   # 29 Playwright e2e tests (drop xvfb-run on macOS)
 node scripts/kill-test.mjs 30  # SIGKILL the app mid-save 30×; file must survive
 ```
+
+Pointing a coding agent at this repo? It should read `AGENTS.md` first — commands, constraints, and the test environment in one place.
 
 Architecture rules that matter (full plan in `docs/PLAN.md`, original prototype in `docs/prototype.html`):
 

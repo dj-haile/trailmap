@@ -1,11 +1,15 @@
 {
   "name": "trailmap",
   "productName": "Trailmap",
-  "version": "0.1.0",
-  "description": "A visual quarterly map of your work \u2014 goal rings, initiatives, people-shaped dependencies, one move at a time.",
+  "version": "0.2.0",
+  "description": "A visual quarterly map of your work — goal rings, initiatives, people-shaped dependencies, one move at a time.",
   "main": "electron/main.js",
   "author": "Dj Haile <dj.haile@gmail.com>",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dj-haile/trailmap.git"
+  },
   "private": true,
   "scripts": {
     "start": "electron .",
