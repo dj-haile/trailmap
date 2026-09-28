@@ -72,7 +72,7 @@ Clicking a notification opens Trailmap. The 9am check re-arms after laptop sleep
 - **Live file:** `~/Library/Application Support/Trailmap/trailmap.json` — one human-readable JSON document. *File → Where Is My Data…* shows the path, the last-save time and the snapshot count, and can copy the path, reveal the file, back it up, or open snapshot history. *File → Open Data Folder* takes you there.
 - **Snapshots:** every save writes one to `snapshots/`, retained on a tiered schedule (everything from the last 24 h, then one per day for 90 days, capped at 1,000). *File → Restore Snapshot…* rolls back; *File → Snapshot Now* makes one on demand.
 - **Export / Import:** *File → Export Data…* writes a copy anywhere; *File → Import Data…* validates before replacing (and snapshots your current state first). Older export formats are accepted and upgraded.
-- **Edit the file directly — it's supported.** Change `trailmap.json` in any editor (or hand it to Claude and describe the changes) while the app runs; the app notices and reloads. If you had unsaved in-app changes at the same moment, it snapshots *both* versions and asks which wins. Writes are atomic — a crash mid-save can never corrupt the file — and a corrupted file is set aside and auto-recovered from the latest good snapshot.
+- **Edit the file directly — it's supported.** Change `trailmap.json` in any editor (or hand it to a coding agent and describe the changes) while the app runs; the app notices and reloads. If you had unsaved in-app changes at the same moment, it snapshots *both* versions and asks which wins. Writes are atomic — a crash mid-save can never corrupt the file — and a corrupted file is set aside and auto-recovered from the latest good snapshot.
 
 ## Tuning
 
@@ -108,6 +108,3 @@ Architecture rules that matter (full plan in `docs/PLAN.md`, original prototype 
 
 Quarter archive & rollover (with what-shipped retrospective; long-horizon goals carry forward) · global quick-add hotkey · a more queryable store behind the same storage interface · signed/notarized distribution · menu-bar mini-view · a web version (the renderer is already ready).
 
----
-
-*Built with Claude from a prototype that started life as a conversation about why text to-do lists don't work for visual thinkers.*
