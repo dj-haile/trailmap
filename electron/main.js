@@ -1,11 +1,15 @@
 // Trailmap — Electron main process.
 // M2: real persistence. Single-writer rule (plan §5): ONLY this process touches
 // the disk, via the StorageProvider. The renderer sends state over IPC.
-const { app, BrowserWindow, ipcMain, dialog, Notification, powerMonitor, Menu, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Notification, powerMonitor, Menu, shell, nativeImage, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { createProvider } = require('./storage/provider');
+const {
+  BUTTONS, dataInfoButtons, formatDataInfo,
+  missingFileMessage, snapshotsUnreadableMessage, recoveryFailedMessage,
+} = require('./data-info');
 
 let logicPromise = null;
 function logic() {
@@ -35,6 +39,13 @@ function dataDir() {
 // E2E runs set this to keep informational dialogs from blocking headless tests.
 const SILENT = process.env.TRAILMAP_SILENT_DIALOGS === '1';
 function notify(opts) {
+  if (process.env.TRAILMAP_NOTIFY_FAKE === '1') {
+    // Test hook: launch-time notices fire before an e2e test can stub the dialog.
+    try {
+      fs.appendFileSync(path.join(dataDir(), 'dialogs.log'),
+        JSON.stringify({ message: opts.message, detail: opts.detail || '' }) + '\n');
+    } catch { /* test hook only */ }
+  }
   if (SILENT || !win) return;
   dialog.showMessageBox(win, { buttons: ['OK'], ...opts });
 }
@@ -182,6 +193,30 @@ async function resolveConflict(raw) {
 
 // ---------- load & corruption recovery (plan §4.2) ----------
 async function loadOrRecover() {
+  // No live file, but history beside it: never go blank without asking. A true
+  // first run (no snapshots) falls through to provider.load(), which seeds empty.
+  if (!provider.liveFileExists()) {
+    const snaps = await provider.listSnapshots();
+    if (snaps.length) {
+      const choice = SILENT ? 0
+        : dialog.showMessageBoxSync(win, missingFileMessage(provider.file, snaps.length, snaps[0].timeISO));
+      if (choice === 0) {
+        let doc = null;
+        for (const s of snaps) {
+          try { doc = await provider.loadSnapshot(s.id); break; }
+          catch { /* unreadable: try the next snapshot */ }
+        }
+        if (doc) {
+          // A save failure here is a disk problem, not an unreadable snapshot:
+          // let it propagate like any other launch-time write failure rather
+          // than falling through to a false "could not be read" notice.
+          await provider.save(doc);
+          return doc;
+        }
+        notify(snapshotsUnreadableMessage(provider.snapDir, snaps.length));
+      }
+    }
+  }
   try {
     return await provider.load();
   } catch (err) {
@@ -201,15 +236,10 @@ async function loadOrRecover() {
         return doc;
       } catch { /* try the next snapshot */ }
     }
-    // No usable snapshot — seed the sample rather than crash.
+    // No usable snapshot — seed the empty map rather than crash, and say so.
     const seeded = JSON.parse(fs.readFileSync(seedPath(), 'utf8'));
     await provider.save(seeded);
-    notify({
-      type: 'warning',
-      message: 'Trailmap could not recover your data',
-      detail: `The data file was unreadable and no valid snapshot existed. ` +
-              `The bad file was kept at:\n${badPath}\n\nStarting from sample data.`,
-    });
+    notify(recoveryFailedMessage(badPath));
     return seeded;
   }
 }
@@ -436,6 +466,31 @@ async function restoreSnapshotFlow() {
   await doRestoreSnapshot(id);
 }
 
+/** File → Where Is My Data…: name the live file and its state; buttons run the
+ *  existing flows. Not routed through notify(): this dialog must show under
+ *  TRAILMAP_SILENT_DIALOGS because e2e tests stub it to read its options. */
+async function showDataInfo() {
+  const info = { ...(await provider.info()), override: !!process.env.TRAILMAP_DATA_DIR };
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'info',
+    ...formatDataInfo(info),
+    buttons: dataInfoButtons(),
+    defaultId: BUTTONS.OK,
+    cancelId: BUTTONS.OK,
+    noLink: true,
+  });
+  if (response === BUTTONS.COPY) {
+    clipboard.writeText(info.file);
+  } else if (response === BUTTONS.REVEAL) {
+    if (info.exists) shell.showItemInFolder(info.file);
+    else shell.openPath(dataDir()); // deleted while running: show the folder it will come back to
+  } else if (response === BUTTONS.BACKUP) {
+    await exportData();
+  } else if (response === BUTTONS.HISTORY) {
+    await restoreSnapshotFlow();
+  }
+}
+
 async function doRestoreSnapshot(id) {
   const doc = await provider.loadSnapshot(id);
   const prev = provider.lastSavedContent();
@@ -462,6 +517,7 @@ function buildMenu() {
         { id: 'restore-snapshot', label: 'Restore Snapshot…', click: () => restoreSnapshotFlow() },
         { type: 'separator' },
         { id: 'load-sample', label: 'Load Sample Data…', click: () => loadSampleData() },
+        { id: 'data-info', label: 'Where Is My Data…', click: () => showDataInfo() },
         { id: 'open-data', label: 'Open Data Folder', click: () => shell.openPath(dataDir()) },
         ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit' }]),
       ],

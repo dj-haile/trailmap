@@ -11,6 +11,9 @@
 // @property {(id: string) => Promise<object>} loadSnapshot
 // @property {() => Promise<void>} snapshotNow
 // @property {() => string|null} lastSavedContent       for self-write detection by the watcher
+// @property {() => boolean} liveFileExists             read-only: is the live file on disk right now
+// @property {() => Promise<{file,exists,snapDir,savedAtISO,snapshotCount,newestSnapshotISO}>} info
+//                                                       read-only facts for "Where Is My Data…"
 
 const { JsonProvider } = require('./json-provider');
 

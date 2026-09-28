@@ -64,7 +64,7 @@ test('external edits to the data file appear in the running app', async () => {
   await page.waitForSelector('.goal');
   await page.waitForTimeout(300);
 
-  // out-of-band edit (what Dj-or-Claude editing the file looks like)
+  // out-of-band edit (what the owner or an agent editing the file looks like)
   const livePath = path.join(dataDir, 'trailmap.json');
   const doc = JSON.parse(fs.readFileSync(livePath, 'utf8'));
   doc.title = 'Edited From Outside';

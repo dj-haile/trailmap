@@ -58,6 +58,22 @@ class JsonProvider {
 
   lastSavedContent() { return this._lastSaved; }
 
+  liveFileExists() { return this.fs.existsSync(this.file); }
+
+  /** Read-only facts for the "Where Is My Data…" dialog. Never touches the doc. */
+  async info() {
+    const exists = this.fs.existsSync(this.file);
+    const entries = this._entries(); // newest first
+    return {
+      file: this.file,
+      exists,
+      snapDir: this.snapDir,
+      savedAtISO: exists ? this.fs.statSync(this.file).mtime.toISOString() : null,
+      snapshotCount: entries.length,
+      newestSnapshotISO: entries.length ? new Date(entries[0].mtime).toISOString() : null,
+    };
+  }
+
   _ensureDirs() {
     this.fs.mkdirSync(this.snapDir, { recursive: true });
   }
