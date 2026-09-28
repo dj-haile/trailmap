@@ -53,3 +53,9 @@ test('AGENTS.md names real npm scripts and the key constraints; CLAUDE.md import
   assert.ok(exists('CLAUDE.md'), 'CLAUDE.md missing');
   assert.match(read('CLAUDE.md'), /^@AGENTS\.md\s*$/m, 'CLAUDE.md should import AGENTS.md');
 });
+
+test('README names the Where Is My Data menu item', () => {
+  const readme = read('README.md');
+  // one line: the new bullet must itself mention snapshots, not rely on the ones below it
+  assert.match(readme, /Where Is My Data….*snapshot/, 'README should describe File → Where Is My Data… and its snapshot summary');
+});

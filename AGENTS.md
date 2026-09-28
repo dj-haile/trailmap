@@ -44,7 +44,7 @@ scripts/        check-renderer-purity.js, kill-test.mjs, check-release.mjs
 ## Test environment
 - `TRAILMAP_DATA_DIR=<dir>` — where the live JSON and snapshots go (tests use a fresh temp dir; default is `~/Library/Application Support/Trailmap/`).
 - `TRAILMAP_SILENT_DIALOGS=1` — suppress informational dialogs (headless runs).
-- `TRAILMAP_NOTIFY_FAKE=1` — record notifications instead of showing them.
+- `TRAILMAP_NOTIFY_FAKE=1` — record notifications to `notifications.log` and informational dialogs to `dialogs.log` (both in the data dir) instead of showing them.
 - E2E launches via `electron.launch({ args: [repoRoot], env })`; wait ~1200 ms before closing if you need the debounced save flushed.
 - Compute dates the way the app does (local calendar date), not via `toISOString()` (UTC).
 - macOS has no `timeout` binary; drive timed runs from Node.

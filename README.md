@@ -69,7 +69,7 @@ Clicking a notification opens Trailmap. The 9am check re-arms after laptop sleep
 
 ## Your data
 
-- **Live file:** `~/Library/Application Support/Trailmap/trailmap.json` — one human-readable JSON document. *File → Open Data Folder* takes you there.
+- **Live file:** `~/Library/Application Support/Trailmap/trailmap.json` — one human-readable JSON document. *File → Where Is My Data…* shows the path, the last-save time and the snapshot count, and can copy the path, reveal the file, back it up, or open snapshot history. *File → Open Data Folder* takes you there.
 - **Snapshots:** every save writes one to `snapshots/`, retained on a tiered schedule (everything from the last 24 h, then one per day for 90 days, capped at 1,000). *File → Restore Snapshot…* rolls back; *File → Snapshot Now* makes one on demand.
 - **Export / Import:** *File → Export Data…* writes a copy anywhere; *File → Import Data…* validates before replacing (and snapshots your current state first). Older export formats are accepted and upgraded.
 - **Edit the file directly — it's supported.** Change `trailmap.json` in any editor (or hand it to Claude and describe the changes) while the app runs; the app notices and reloads. If you had unsaved in-app changes at the same moment, it snapshots *both* versions and asks which wins. Writes are atomic — a crash mid-save can never corrupt the file — and a corrupted file is set aside and auto-recovered from the latest good snapshot.
@@ -81,8 +81,8 @@ Every behavioral number lives in one place: `CONSTANTS` in `renderer/logic.js` �
 ## Development
 
 ```bash
-npm test                       # renderer-purity check + 48 unit tests
-xvfb-run -a npm run test:e2e   # 29 Playwright e2e tests (drop xvfb-run on macOS)
+npm test                       # renderer-purity check + 51 unit tests
+xvfb-run -a npm run test:e2e   # 40 Playwright e2e tests (drop xvfb-run on macOS)
 node scripts/kill-test.mjs 30  # SIGKILL the app mid-save 30×; file must survive
 ```
 
